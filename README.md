@@ -107,7 +107,7 @@ emmake make
 sudo make install 
 ```
 
-#### build raylib for for desktop
+#### build raylib for desktop
 
 ```bash
 cmake -B build -DPLATFORM=PLATFORM_DESKTOP -DPLATFORM=Desktop;Web -DSUPPORT_TRACELOG=OFF

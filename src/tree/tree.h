@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Eigen/Dense>
 #include <algorithm>
 #include <fstream>
 #include <limits>
