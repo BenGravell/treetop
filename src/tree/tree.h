@@ -281,7 +281,7 @@ struct Tree {
             const auto& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
-            const Node node = Node(state, parent, traj, cost, cost + parent->cost_to_come);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -305,7 +305,7 @@ struct Tree {
             }
             const double cost = softLoss(traj);
             const StateVector& state = traj.stateTerminal();
-            const Node node = Node(state, parent, traj, cost, cost + parent->cost_to_come);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -432,7 +432,7 @@ struct Tree {
     void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = std::nullopt) {
         // Add root node.
         // Root node is the only node in tree.layers[0]
-        const Node root = Node(start, nullptr, std::nullopt, 0.0, 0.0);
+        const Node root{start, nullptr, std::nullopt, 0.0, 0.0};
         const NodePtr root_ptr = std::make_shared<Node>(root);
         addNode(root_ptr, 0);
 
