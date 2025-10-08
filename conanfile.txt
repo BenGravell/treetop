@@ -1,5 +1,4 @@
 [requires]
-glog/0.7.1
 eigen/3.4.0
 raylib/5.5
 

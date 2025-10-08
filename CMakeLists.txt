@@ -2,13 +2,12 @@ cmake_minimum_required(VERSION 3.23)
 project(treetop)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # Enable compile_commands.json (required by IWYU)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find packages
-find_package(glog REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(raylib REQUIRED)
 
@@ -28,7 +27,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # Link external libraries to the target
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE 
-        glog::glog
         Eigen3::Eigen
         raylib
 )
