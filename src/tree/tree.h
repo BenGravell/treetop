@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -9,7 +10,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <cassert>
 
 #include "core/constants.h"
 #include "core/obstacle.h"
@@ -205,7 +205,7 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
     const double dv = delta(3);
 
     // TODO use the TerminalStateParams.
-    // Current numbers are hardcoded to match what is in 
+    // Current numbers are hardcoded to match what is in
     // problem.h -> makeProblem() -> terminal_state_params
     // and set as a factor of those thresholds.
     static constexpr double tol_factor = 1.0;
