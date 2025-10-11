@@ -39,7 +39,7 @@ if(PLATFORM_WEB)
                     -s TOTAL_STACK=64MB \
                     -s INITIAL_MEMORY=128MB \
                     --shell-file ${CMAKE_SOURCE_DIR}/shell.html \
-                    --preload-file ${CMAKE_SOURCE_DIR}/assets"
+                    --preload-file ${CMAKE_SOURCE_DIR}/assets@/assets"
         SUFFIX ".html"
     )
 
