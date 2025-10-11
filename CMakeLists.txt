@@ -43,6 +43,12 @@ if(PLATFORM_WEB)
         SUFFIX ".html"
     )
 
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RUNTIME_OUTPUT_NAME "index"
+    )
+
+
     # DEBUG
     # set_target_properties(${PROJECT_NAME} PROPERTIES
     #     LINK_FLAGS "-O0 -gsource-map \
