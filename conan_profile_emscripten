@@ -1,0 +1,12 @@
+[settings]
+os=Emscripten
+arch=wasm
+compiler=clang
+compiler.version=19
+compiler.cppstd=17
+compiler.libcxx=libc++
+build_type=Release
+
+[conf]
+tools.cmake.cmaketoolchain:generator=Ninja
+tools.build:compiler_executables={"c": "emcc", "cpp": "em++"}

@@ -21,9 +21,9 @@ The planner is interactive via a Raylib app.
 ### Build
 
 ```bash
-conan install . --build=missing -of=build/conan --settings=build_type=Release
+conan install . --build=missing -of=build/conan/release --settings=build_type=Release
 
-cmake -B build/release -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="build/conan/conan_toolchain.cmake" -DCMAKE_CXX_FLAGS="-march=native -ffast-math -flto=auto" -DCMAKE_C_FLAGS="-march=native -ffast-math -flto=auto"
+cmake -B build/release -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="build/conan/release/conan_toolchain.cmake" -DCMAKE_CXX_FLAGS="-march=native -ffast-math -flto=auto" -DCMAKE_C_FLAGS="-march=native -ffast-math -flto=auto"
 
 cmake --build build/release --config Release
 ```
@@ -31,9 +31,9 @@ cmake --build build/release --config Release
 ### Build Debug
 
 ```bash
-conan install . --build=missing -of=build/conan --settings=build_type=Debug
+conan install . --build=missing -of=build/conan/debug --settings=build_type=Debug
 
-cmake -B build/debug -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="build/conan/conan_toolchain.cmake"
+cmake -B build/debug -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="build/conan/debug/conan_toolchain.cmake"
 
 cmake --build build/debug --config Debug
 ```
@@ -127,28 +127,31 @@ wget https://raw.githubusercontent.com/raysan5/raylib/refs/heads/master/src/shel
 
 #### Build to Web Assembly
 
-```bash
-cd ~/emsdk
-source emsdk_env.sh
-cd ~/treetop
+First time setup - vendor eigen
 
-em++ -o index.html src/main.cpp -O3 -Wall \
--I src \
--I ~/emsdk/upstream/emscripten/cache/sysroot/include \
--L ~/emsdk/upstream/emscripten/cache/sysroot/lib/libraylib.a \
--s USE_GLFW=3 -s ASYNCIFY \
---preload-file assets \
---shell-file shell.html \
--DPLATFORM_WEB \
-~/emsdk/upstream/emscripten/cache/sysroot/lib/libraylib.a
+```bash
+mkdir -p external
+git clone --depth 1 https://gitlab.com/libeigen/eigen.git external/eigen
+```
+
+First time setup - add conan profile from conan_profile_emscripten TODO
+
+Every time
+
+```bash
+source ~/emsdk/emsdk_env.sh
+
+conan install . --profile=emscripten --build=raylib --build=missing --output-folder=build/conan/web
+
+emcmake cmake -B build/web -DCMAKE_BUILD_TYPE=Release -DPLATFORM_WEB=ON -DCMAKE_TOOLCHAIN_FILE="build/conan/web/conan_toolchain.cmake"
+
+emmake cmake --build build/web -j
 ```
 
 #### Run
 
 ```bash
-cd ~/emsdk
-source emsdk_env.sh
-cd ~/treetop
+source ~/emsdk/emsdk_env.sh
 
 emrun index.html
 ```
