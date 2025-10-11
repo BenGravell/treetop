@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #include "core/constants.h"
 #include "core/obstacle.h"
