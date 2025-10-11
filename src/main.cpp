@@ -88,7 +88,7 @@ int main() {
     int draw_elm_clock_time_next = 0;
 
     // Load a monospaced font
-    Font mono_font = LoadFont("fonts/IBMPlexMono-Bold.ttf");
+    Font mono_font = LoadFont("assets/IBMPlexMono-Bold.ttf");
 
     static const int button_width = 300;
     static const int button_height = 50;
