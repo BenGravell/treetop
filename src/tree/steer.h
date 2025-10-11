@@ -129,14 +129,13 @@ inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector&
     for (int i = 0; i < N; ++i) {
         // Sample time at midpoint of the current segment.
         // This yields a bit more accurate sampling compared to sampling times at the start or end of the segment.
-        const double t1 = (i + 0.5) * dt;
-        const double t2 = square(t1);
+        const double t = (i + 0.5) * dt;
 
         // Get first and second derivatives of x- and y-components of motion with respect to time using analytic polynomial expressions.
-        const double dxdt = polyval1(x_coeffs, t1);
-        const double dydt = polyval1(y_coeffs, t1);
-        const double d2xdt2 = polyval2(x_coeffs, t1);
-        const double d2ydt2 = polyval2(y_coeffs, t1);
+        const double dxdt = polyval1(x_coeffs, t);
+        const double dydt = polyval1(y_coeffs, t);
+        const double d2xdt2 = polyval2(x_coeffs, t);
+        const double d2ydt2 = polyval2(y_coeffs, t);
 
         // Speed and its cube.
         const double v = shypot(dxdt, dydt);

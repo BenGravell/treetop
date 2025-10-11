@@ -31,8 +31,6 @@ struct Dynamics {
         // Extract states and actions.
         const double yaw = state(2);
         const double speed = state(3);
-        const double accel = action(0);
-        const double curvature = action(1);
 
         // Compute intermediate quantities.
         const double dt_cos_yaw = DT * std::cos(yaw);

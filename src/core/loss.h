@@ -237,9 +237,6 @@ struct Loss {
         const auto obstacle_grad = obstacle_grad_and_hess.grad;
         const auto obstacle_hess = obstacle_grad_and_hess.hess;
 
-        const double soft_accel_lat_loss = soft_params.accel_lat_scale * smoothAbs(accel_lat, soft_params.accel_lat_tol);
-        const double soft_curvature_loss = soft_params.curvature_scale * smoothAbs(curvature, soft_params.curvature_tol);
-
         // ---- Gradient
         // Compute components
         // Soft terms
