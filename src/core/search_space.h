@@ -7,7 +7,7 @@ static constexpr double X_MAX = 40.0;
 static constexpr double X_MIN = 0.0;
 static constexpr double X_SIZE = X_MAX - X_MIN;
 
-static constexpr double Y_MAX = 4.0;
+static constexpr double Y_MAX = 5.0;
 static constexpr double Y_MIN = -Y_MAX;
 static constexpr double Y_SIZE = Y_MAX - Y_MIN;
 
