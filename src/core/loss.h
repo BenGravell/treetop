@@ -217,9 +217,6 @@ struct Loss {
 
         // Compute components
         // Soft terms
-        // const double soft_accel_lon_loss = soft_params.accel_lon_scale * square(accel_lon);
-        // const double soft_accel_lat_loss = soft_params.accel_lat_scale * square(accel_lat);
-        // const double soft_curvature_loss = soft_params.curvature_scale * square(curvature);
         const double soft_accel_lon_loss = soft_params.accel_lon_scale * smoothAbs(accel_lon, soft_params.accel_lon_tol);
         const double soft_accel_lat_loss = soft_params.accel_lat_scale * smoothAbs(accel_lat, soft_params.accel_lat_tol);
         const double soft_curvature_loss = soft_params.curvature_scale * smoothAbs(curvature, soft_params.curvature_tol);
@@ -289,11 +286,6 @@ struct Loss {
         // ---- Hessian
         // Compute components
         // Soft terms
-        // const double soft_vv = 12.0 * soft_params.accel_lat_scale * speed2 * curvature2;
-        // const double soft_vk = 8.0 * soft_params.accel_lat_scale * speed3 * curvature;
-        // const double soft_aa = 2.0 * soft_params.accel_lon_scale;
-        // const double soft_kk = 2.0 * (soft_params.accel_lat_scale * speed4 + soft_params.curvature_scale);
-
         const double soft_accel_lat_hess = soft_params.accel_lat_scale * smoothAbsHess(accel_lat, soft_params.accel_lat_tol);
         const double soft_vv = soft_accel_lat_hess * (2 * speed2 * curvature2) + soft_accel_lat_grad * (2 * curvature);
         const double soft_vk = soft_accel_lat_hess * (speed2 * (2 * speed * curvature)) + soft_accel_lat_grad * (2 * speed);
