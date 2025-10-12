@@ -183,26 +183,6 @@ inline StateVector sample(const StateVector& goal, const std::optional<Trajector
     return sample();
 }
 
-inline bool outsideEnvironment(const StateVector& state) {
-    const bool x_ok = (X_MIN <= state(0)) && (state(0) <= X_MAX);
-    const bool y_ok = (Y_MIN <= state(1)) && (state(1) <= Y_MAX);
-    const bool yaw_ok = (YAW_MIN <= state(2)) && (state(2) <= YAW_MAX);
-    const bool v_ok = (V_MIN <= state(3)) && (state(3) <= V_MAX);
-    return !(x_ok && y_ok && yaw_ok && v_ok);
-}
-
-template <int N>
-inline bool outsideEnvironment(const Trajectory<N>& traj) {
-    // Iterate in reverse since, heuristically, states at the end of the trajectory
-    // are more likely to fail the check and terminate the loop early.
-    for (int stage_ix = N; stage_ix >= 0; --stage_ix) {
-        if (outsideEnvironment(traj.stateAt(stage_ix))) {
-            return true;
-        }
-    }
-    return false;
-}
-
 inline bool checkTargetHit(const StateVector& state, const StateVector& target) {
     const StateVector delta = state - target;
     const double dx = delta(0);
@@ -275,7 +255,7 @@ struct Tree {
         // This ensures there is always at least one node in each layer,
         // which is needed later for the final steer to goal node and extractPathToNode call,
         // which expects fully connected parent chain to root.
-        // NOTE: this ignores collisions and outsideEnvironment constraints.
+        // NOTE: this ignores collisions.
         NodePtr parent = root;
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
             const bool constrain = true;
@@ -349,12 +329,6 @@ struct Tree {
             return;
         }
 
-        // Something, e.g. steering or action constraint projection,
-        // caused a trajectory state to go outside the environment.
-        if (outsideEnvironment(traj)) {
-            return;
-        }
-
         // Create node from sampled state and add to the tree.
         const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
         const NodePtr node_ptr = std::make_shared<Node>(node);
@@ -405,9 +379,6 @@ struct Tree {
             min_dist_to_goal_nv.compareWith(node, dist_to_goal);
 
             if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
-                continue;
-            }
-            if (outsideEnvironment(steer_outputs.traj)) {
                 continue;
             }
 
