@@ -53,14 +53,12 @@ void DrawTree(const Tree& tree) {
             }
 
             // Color by time index.
-            const float line_width = 1.0;
+            static constexpr float line_width = 2.0;
             const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
-            
             Color color = COLOR_GRAY_128;
             if (node->reason == SampleReason::kCold) {
                 color = coolColormap(c);
-            }
-            else if (node->reason == SampleReason::kWarm) {
+            } else if (node->reason == SampleReason::kWarm) {
                 color = warmColormap(c);
             }
             color = Fade(color, 0.8f);

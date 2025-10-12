@@ -155,7 +155,7 @@ int main() {
         const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
         const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
         const bool mouse_in_use_cold_start_button = CheckCollisionPointRec(mouse_point, use_cold_start_button);
-        const bool mouse_in_use_goal_sampling_button= CheckCollisionPointRec(mouse_point, use_goal_sampling_button);
+        const bool mouse_in_use_goal_sampling_button = CheckCollisionPointRec(mouse_point, use_goal_sampling_button);
         const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
 
         const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
@@ -257,10 +257,9 @@ int main() {
 
         // Draw pre-opt trajectory (tree solution).
         if (viz_settings.show_pre_opt_traj) {
-            static constexpr float line_width = 8;
-            static constexpr float node_width = 16;
+            static constexpr float line_width = 10;
+            static constexpr float node_width = 20;
             // Draw trajectory so that even if DrawPath draws nothing we still see the pre-opt traj.
-            // That happens when all trees are disabled and we do trajOptOnly.
             DrawTrajectory(planner_outputs.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
             // Draw path so we see the nodes in the pre-opt traj path, if available.
             DrawPath(planner_outputs.path, line_width, node_width);
@@ -268,16 +267,16 @@ int main() {
 
         // Draw post-opt trajectory (iLQR solution).
         if (viz_settings.show_post_opt_traj) {
-            static constexpr float line_width = 4;
+            static constexpr float line_width = 6;
             DrawTrajectory(planner_outputs.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
         }
 
         // Draw start point and the goal point
-        DrawSquare(start_point, 10, WHITE);
-        DrawSquare(start_point, 6, BLACK);
+        DrawSquare(start_point, 14, WHITE);
+        DrawSquare(start_point, 8, BLACK);
 
-        DrawGoalTriangle(goal_point, 16, WHITE);
-        DrawGoalTriangle(goal_point, 8, BLACK);
+        DrawGoalTriangle(goal_point, 20, WHITE);
+        DrawGoalTriangle(goal_point, 10, BLACK);
 
         if (paused) {
             // Show pause overlay
