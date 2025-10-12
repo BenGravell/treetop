@@ -325,7 +325,6 @@ int main() {
         static constexpr int STATS_FONT_SIZE = 20;
         static constexpr int STATS_ROW_HEIGHT = STATS_FONT_SIZE + STATS_MARGIN;
         static constexpr int STATS_WIDTH_1 = 200;
-        static constexpr int STATS_WIDTH_2 = 350;
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
