@@ -9,8 +9,8 @@
 #include "tree/tree.h"
 
 // Tree settings
-static constexpr int NUM_NODE_ATTEMPTS_COLD = 4000;
-static constexpr int NUM_NODE_ATTEMPTS_WARM = 1000;
+static constexpr int NUM_NODE_ATTEMPTS_COLD = 10000;
+static constexpr int NUM_NODE_ATTEMPTS_WARM = 2000;
 
 struct TimingInfo {
     int tree_exp;  // ms
