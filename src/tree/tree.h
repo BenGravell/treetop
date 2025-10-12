@@ -11,6 +11,12 @@
 #include <string>
 #include <vector>
 
+#ifdef PI
+#undef PI
+#endif
+#include "nanoflann.h"
+const double PI = nanoflann::pi_const<double>();
+
 #include "core/constants.h"
 #include "core/obstacle.h"
 #include "core/search_space.h"
@@ -220,20 +226,33 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
 using Nodes = std::vector<NodePtr>;
 using Layers = std::array<Nodes, NUM_STEER_SEGMENTS + 1>;
 
+struct StateCloud {
+    std::vector<StateVector> pts;
+
+    inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+    inline double kdtree_get_pt(const size_t idx, const size_t dim) const {
+        return pts[idx](dim);
+    }
+
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX&) const { return false; }
+};
+
+typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StateCloud>, StateCloud, 4 /* dimension */> KDTree;
+
 struct Tree {
     Layers layers;
 
-    const NodePtr getNearest(const StateVector& target, const int target_time_ix) const {
-        double min_cost = std::numeric_limits<double>::max();
-        NodePtr nearest_node = nullptr;
-        const Nodes& nodes = layers[target_time_ix - 1];
-        for (NodePtr node : nodes) {
-            const double cost = zapDistanceHeuristic(node->state, target);
-            if (cost < min_cost) {
-                min_cost = cost;
-                nearest_node = node;
-            }
-        }
+    const NodePtr getNearest(const StateVector& target, const int target_time_ix, const KDTree& zap_kdtree) const {
+        // Query point from KDTree index
+        size_t ret_index;
+        double out_dist_sqr;
+        nanoflann::KNNResultSet<double> resultSet(1);
+        resultSet.init(&ret_index, &out_dist_sqr);
+        zap_kdtree.findNeighbors(resultSet, target.data());
+
+        NodePtr nearest_node = layers[target_time_ix - 1][ret_index];
 
         return nearest_node;
     }
@@ -256,10 +275,6 @@ struct Tree {
                 min_cost_to_come = cost_to_come;
                 nearest_node = node;
             }
-        }
-
-        if (nearest_node == nullptr) {
-            return getNearest(target, target_time_ix);
         }
 
         return nearest_node;
@@ -313,12 +328,12 @@ struct Tree {
         }
     }
 
-    void growSingleNode(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix) {
+    void growSingleNode(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const KDTree& zap_kdtree) {
         // Sample a new state.
         StateVector state = sample(goal, warm_traj, time_ix);
 
         // Set the parent.
-        const NodePtr parent = getNearest(state, time_ix);
+        const NodePtr parent = getNearest(state, time_ix, zap_kdtree);
 
         // Could not find a parent.
         if (parent == nullptr) {
@@ -361,8 +376,24 @@ struct Tree {
     }
 
     void growSingleStage(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_stage) {
+        // Build the zero-action-point cloud.
+        StateCloud zap_cloud;
+        const Nodes& prev_nodes = layers[time_ix - 1];
+        zap_cloud.pts.reserve(prev_nodes.size());
+        std::transform(
+            prev_nodes.begin(), prev_nodes.end(),
+            std::back_inserter(zap_cloud.pts),
+            [](const NodePtr& node) {
+                return rolloutZeroAction(node->state, TRAJ_DURATION_STEER);
+            });
+
+        // Build the zero-action-point KD tree index.
+        KDTree zap_kdtree(4, zap_cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+        zap_kdtree.buildIndex();
+
+        // Grow.
         for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
-            growSingleNode(goal, warm_traj, time_ix);
+            growSingleNode(goal, warm_traj, time_ix, zap_kdtree);
         }
     }
 
