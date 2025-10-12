@@ -9,7 +9,7 @@
 // Length of trajectory for steering function, i.e. for one node.
 // NOTE: Need to choose a reasonable middle ground.
 // 1. Larger TRAJ_LENGTH_STEER -> more reliance on steering function, more nodes per stage.
-//    - Typically helps the tree explore state space faster, less coverage.
+//    - Typically helps the tree explore state space faster, more coverage.
 //    - May miss manuevers involving cusps / direction change.
 // 2. Smaller TRAJ_LENGTH_STEER -> less reliance on steering function, less nodes per stage.
 //    - Typically makes the tree explore state space slower, less coverage.
