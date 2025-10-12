@@ -4,6 +4,7 @@
 
 #include "core/space.h"
 #include "core/trajectory.h"
+#include "tree/sampling.h"
 
 struct Node;
 
@@ -27,4 +28,7 @@ struct Node {
 
     // Cost to come to this node from the root of the tree.
     const double cost_to_come;
+
+    // Reason why this node was sampled.
+    const SampleReason reason;
 };

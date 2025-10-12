@@ -105,6 +105,7 @@ int main() {
     Rectangle use_action_jitter_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
     Rectangle use_warm_start_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
     Rectangle use_cold_start_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_goal_sampling_button = {button_x2, button_margin + 3 * (button_height + button_margin), button_width, button_height};
 
     // Column 3
     Rectangle show_tree_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
@@ -117,6 +118,9 @@ int main() {
     bool paused = false;
     bool use_warm = true;
     bool use_cold = true;
+    bool use_goal = true;
+    SamplingSettings sampling_settings = {use_warm, use_cold, use_goal};
+
     bool use_action_jitter = true;
 
     bool show_tree = true;
@@ -132,9 +136,9 @@ int main() {
     Vector2 goal_point = state2screen(goal);
 
     // Initial plan
-    MultiPlannerOutputs planner_outputs;
-    const MultiPlannerSettings planner_settings = {use_warm, use_cold, use_action_jitter};
-    planner_outputs = MultiPlanner::plan(planner_settings, start, goal, std::nullopt);
+    PlannerOutputs planner_outputs;
+    std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt;
+    planner_outputs = Planner::plan(start, goal, warm, use_action_jitter, sampling_settings);
 
     float last_time = GetTime();
 
@@ -151,6 +155,7 @@ int main() {
         const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
         const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
         const bool mouse_in_use_cold_start_button = CheckCollisionPointRec(mouse_point, use_cold_start_button);
+        const bool mouse_in_use_goal_sampling_button= CheckCollisionPointRec(mouse_point, use_goal_sampling_button);
         const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
 
         const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
@@ -158,7 +163,7 @@ int main() {
         const bool mouse_in_show_post_opt_traj_button = CheckCollisionPointRec(mouse_point, show_post_opt_traj_button);
 
         // check if mouse is in any button
-        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
+        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_use_goal_sampling_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
 
         // update toggle states
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_pause_button) {
@@ -169,6 +174,9 @@ int main() {
         }
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_cold_start_button) {
             use_cold = !use_cold;
+        }
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_goal_sampling_button) {
+            use_goal = !use_goal;
         }
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
             use_action_jitter = !use_action_jitter;
@@ -183,6 +191,7 @@ int main() {
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_post_opt_traj_button) {
             show_post_opt_traj = !show_post_opt_traj;
         }
+        sampling_settings = {use_warm, use_cold, use_goal};
 
         // Check for explicit advance
         const bool explicit_advance = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_advance_button;
@@ -215,9 +224,8 @@ int main() {
         // Update game state.
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
-            const MultiPlannerSettings planner_settings = {use_warm, use_cold, use_action_jitter};
-            const std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::make_optional(planner_outputs.out.solution);
-            planner_outputs = MultiPlanner::plan(planner_settings, start, goal, warm);
+            warm = std::make_optional(planner_outputs.solution);
+            planner_outputs = Planner::plan(start, goal, warm, use_action_jitter, sampling_settings);
         }
 
         // Draw everything
@@ -244,12 +252,7 @@ int main() {
 
         // Draw tree(s).
         if (viz_settings.show_tree) {
-            if (use_cold) {
-                DrawTree(planner_outputs.cold.tree, false);
-            }
-            if (use_warm) {
-                DrawTree(planner_outputs.warm.tree, true);
-            }
+            DrawTree(planner_outputs.tree);
         }
 
         // Draw pre-opt trajectory (tree solution).
@@ -258,15 +261,15 @@ int main() {
             static constexpr float node_width = 16;
             // Draw trajectory so that even if DrawPath draws nothing we still see the pre-opt traj.
             // That happens when all trees are disabled and we do trajOptOnly.
-            DrawTrajectory(planner_outputs.out.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
+            DrawTrajectory(planner_outputs.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
             // Draw path so we see the nodes in the pre-opt traj path, if available.
-            DrawPath(planner_outputs.out.path, line_width, node_width);
+            DrawPath(planner_outputs.path, line_width, node_width);
         }
 
         // Draw post-opt trajectory (iLQR solution).
         if (viz_settings.show_post_opt_traj) {
             static constexpr float line_width = 4;
-            DrawTrajectory(planner_outputs.out.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
+            DrawTrajectory(planner_outputs.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
         }
 
         // Draw start point and the goal point
@@ -291,11 +294,15 @@ int main() {
 
         // Draw use-warm-start button
         DrawRectangleRec(use_warm_start_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_warm ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
+        DrawText(use_warm ? "Disable warm-start sampling" : "Enable warm-start sampling", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
-        // Draw use-exploration-tree button
+        // Draw use-cold-start button
         DrawRectangleRec(use_cold_start_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_cold ? "Disable cold-start tree" : "Enable cold-start tree", use_cold_start_button.x + 10, use_cold_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
+        DrawText(use_cold ? "Disable cold-start sampling" : "Enable cold-start sampling", use_cold_start_button.x + 10, use_cold_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
+
+        // Draw use-goal-sampling button
+        DrawRectangleRec(use_goal_sampling_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_goal ? "Disable goal sampling" : "Enable goal sampling", use_goal_sampling_button.x + 10, use_goal_sampling_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-action-jitter button
         DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
@@ -322,10 +329,10 @@ int main() {
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
-            tree_exp_clock_time = planner_outputs.out.timing_info.tree_exp;
+            tree_exp_clock_time = planner_outputs.timing_info.tree_exp;
         }
         if (traj_opt_clock_time < 0) {
-            traj_opt_clock_time = planner_outputs.out.timing_info.traj_opt;
+            traj_opt_clock_time = planner_outputs.timing_info.traj_opt;
         }
         if (draw_elm_clock_time < 0) {
             draw_elm_clock_time = draw_elm_clock_time_next;
@@ -333,39 +340,33 @@ int main() {
         if (game_upd_clock_time < 0) {
             game_upd_clock_time = static_cast<int>(1e6 * delta_time);
         }
-        tree_exp_clock_time = static_cast<int>(Lerp(planner_outputs.out.timing_info.tree_exp, tree_exp_clock_time, paused ? 0.0 : tree_exp_clock_momentum));
-        traj_opt_clock_time = static_cast<int>(Lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
+        tree_exp_clock_time = static_cast<int>(Lerp(planner_outputs.timing_info.tree_exp, tree_exp_clock_time, paused ? 0.0 : tree_exp_clock_momentum));
+        traj_opt_clock_time = static_cast<int>(Lerp(planner_outputs.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
         draw_elm_clock_time = static_cast<int>(Lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
         game_upd_clock_time = static_cast<int>(Lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
 
-        // Column 1
+        // Column 1 - timing info
         DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
         DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
 
-        // Draw the planner stats
-        const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
-
-        // Column 2
+        // Column 2 - planner stats
+        const double v_avg = planner_outputs.solution.traj.state_sequence.row(3).cwiseAbs().mean();
+        DrawTextEx(mono_font, TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         int num_nodes = 0;
-        for (const Nodes& nodes : planner_outputs.out.tree.layers) {
+        for (const Nodes& nodes : planner_outputs.tree.layers) {
             num_nodes += nodes.size();
         }
         DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
-
-        // Column 3
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, soln %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, warm %9.6f", planner_outputs.warm.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, cold %9.6f", planner_outputs.cold.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
 
         // Time plots.
         {
             // Common data.
-            const Trajectory<TRAJ_LENGTH_OPT>& traj_pre_opt = planner_outputs.out.traj_pre_opt;
-            const Trajectory<TRAJ_LENGTH_OPT>& traj_post_opt = planner_outputs.out.solution.traj;
+            const Trajectory<TRAJ_LENGTH_OPT>& traj_pre_opt = planner_outputs.traj_pre_opt;
+            const Trajectory<TRAJ_LENGTH_OPT>& traj_post_opt = planner_outputs.solution.traj;
 
             // Speed data
             const TimePlotDataValues speed_time_plot_data_vals = {extractSpeed(traj_post_opt), extractSpeed(traj_pre_opt)};

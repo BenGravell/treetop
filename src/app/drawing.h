@@ -37,7 +37,7 @@ void DrawPath(const Path& path, const float line_width, const float node_width) 
     }
 }
 
-void DrawTree(const Tree& tree, const bool warm) {
+void DrawTree(const Tree& tree) {
     // time_ix runs from 0 to NUM_STEER_SEGMENTS + 1, inclusive.
     // NOTE: NUM_STEER_SEGMENTS + 1 == tree.layers.size()
     // NOTE: start node is tree.layers[0].front()
@@ -55,7 +55,15 @@ void DrawTree(const Tree& tree, const bool warm) {
             // Color by time index.
             const float line_width = 1.0;
             const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
-            const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.8f);
+            
+            Color color = COLOR_GRAY_128;
+            if (node->reason == SampleReason::kCold) {
+                color = coolColormap(c);
+            }
+            else if (node->reason == SampleReason::kWarm) {
+                color = warmColormap(c);
+            }
+            color = Fade(color, 0.8f);
 
             if (node->traj) {
                 DrawTrajectory(node->traj.value(), line_width, color);

@@ -8,9 +8,7 @@
 #include "ilqr/solver_settings.h"
 #include "tree/tree.h"
 
-// Tree settings
-static constexpr int NUM_NODE_ATTEMPTS_COLD = 10000;
-static constexpr int NUM_NODE_ATTEMPTS_WARM = 2000;
+static constexpr int NUM_NODE_ATTEMPTS = 10000;
 
 struct TimingInfo {
     int tree_exp;  // ms
@@ -26,11 +24,12 @@ struct PlannerOutputs {
 };
 
 struct Planner {
-    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
+    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm,     const SamplingSettings& sampling_settings) {
         const float clock_start = GetTime();
 
         Tree tree;
-        tree.grow(start, goal, num_node_attempts, warm ? std::optional(warm->traj) : std::nullopt);
+        std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = warm ? std::optional(warm->traj) : std::nullopt;
+        tree.grow(start, goal, num_node_attempts, warm_traj, sampling_settings);
 
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
@@ -106,8 +105,9 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
-        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, num_node_attempts, warm);
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
+
+        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, sampling_settings);
         const Path path = tree.extractPathToGoal();
         auto action_sequence = convertPathToActionSequence(path);
 
@@ -137,79 +137,5 @@ struct Planner {
         const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
-    }
-};
-
-struct MultiPlannerOutputs {
-    PlannerOutputs out;
-    PlannerOutputs warm;
-    PlannerOutputs cold;
-};
-
-struct MultiPlannerSettings {
-    bool use_warm;
-    bool use_cold;
-    bool use_action_jitter;
-};
-
-struct MultiPlanner {
-    static MultiPlannerOutputs
-    plan(MultiPlannerSettings settings, const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
-        MultiPlannerOutputs planner_outputs;
-
-        if (settings.use_warm) {
-            // Run the primary planner, including warm-start.
-            planner_outputs.warm = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_WARM, warm, settings.use_action_jitter);
-        }
-
-        if (settings.use_cold) {
-            // Run the secondary planner, without warm-starting.
-            // Works well to avoid getting stuck in local minima induced by warm-starting.
-            // This probably outweighs the cost of running the planner twice,
-            // especially if the secondary planner could run in a separate thread concurrently.
-            planner_outputs.cold = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_COLD, std::nullopt, settings.use_action_jitter);
-        }
-
-        // Set the ultimate output planner_outputs.out.
-        if (settings.use_warm && !settings.use_cold) {
-            planner_outputs.out = planner_outputs.warm;
-        } else if (!settings.use_warm && settings.use_cold) {
-            planner_outputs.out = planner_outputs.cold;
-        } else if (settings.use_warm && settings.use_cold) {
-            // ---- Combine the warm and cold planner outputs.
-
-            // Check if warm and cold planner solutions are valid.
-            const bool warm_soln_valid = checkTargetHit(planner_outputs.warm.solution.traj.stateTerminal(), goal);
-            const bool cold_soln_valid = checkTargetHit(planner_outputs.cold.solution.traj.stateTerminal(), goal);
-
-            // Decide which solution to use.
-            bool use_cold_soln = false;
-            if (warm_soln_valid && cold_soln_valid) {
-                // If both solutions are valid, use the lower-cost one.
-                use_cold_soln = planner_outputs.cold.solution.cost < planner_outputs.warm.solution.cost;
-            } else if (!warm_soln_valid && cold_soln_valid) {
-                // If cold solution is valid but not the primary solution, use the cold one.
-                use_cold_soln = true;
-            } else if (warm_soln_valid && !cold_soln_valid) {
-                // If warm solution is valid but not the cold solution, do not use the cold one.
-                use_cold_soln = false;
-            } else {
-                // If neither solution is valid, use the one that hits closer to the goal.
-                const double d_warm = distanceHeuristic(planner_outputs.warm.solution.traj.stateTerminal(), goal);
-                const double d_cold = distanceHeuristic(planner_outputs.cold.solution.traj.stateTerminal(), goal);
-                use_cold_soln = d_cold < d_warm;
-            }
-
-            // Replace outputs.
-            planner_outputs.out = use_cold_soln ? planner_outputs.cold : planner_outputs.warm;
-            // Add outputs.
-            planner_outputs.out.timing_info.tree_exp = planner_outputs.warm.timing_info.tree_exp + planner_outputs.cold.timing_info.tree_exp;
-            planner_outputs.out.timing_info.traj_opt = planner_outputs.warm.timing_info.traj_opt + planner_outputs.cold.timing_info.traj_opt;
-        } else {
-            // Run the traj-opt-only planner.
-            planner_outputs.out = Planner::planTrajOptOnly(start, goal, warm, settings.use_action_jitter);
-        }
-
-        return planner_outputs;
     }
 };
