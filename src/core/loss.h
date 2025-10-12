@@ -8,19 +8,43 @@
 #include <vector>
 
 #include "core/obstacle.h"
+#include "core/search_space.h"
 #include "core/smooth_functions.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
 
 // TODO put in loss config struct
-// static constexpr double boundary_loss_weight = 10.0;
 static constexpr double obstacle_loss_weight = 10.0;
 
+// ---- SCENARIO: Slalom with border
+std::vector<Obstacle> makeSlalomScenario() {
+    // ---- Slalom
+    std::vector<Obstacle> obstacles = {
+        {{12.0, 1.0}, 2.5},
+        {{28.0, -1.0}, 2.5}};
+
+    // ---- Border
+    static constexpr float spacing = 4.0;
+    static constexpr double radius = 4.0;
+
+    // Top and bottom edges
+    for (float x = X_MIN; x <= X_MAX; x += spacing) {
+        obstacles.push_back({{x, (float)Y_MAX + (float)radius}, radius});  // top
+        obstacles.push_back({{x, (float)Y_MIN - (float)radius}, radius});  // bottom
+    }
+
+    // Left and right edges
+    for (float y = Y_MIN; y <= Y_MAX; y += spacing) {
+        obstacles.push_back({{(float)X_MIN - (float)radius, y}, radius});  // left
+        obstacles.push_back({{(float)X_MAX + (float)radius, y}, radius});  // right
+    }
+
+    return obstacles;
+}
+
 // ---- SCENARIO: Slalom.
-std::vector<Obstacle> obstacles = {
-    {{12.0, 1.0}, 2.5},
-    {{28.0, -1.0}, 2.5}};
+std::vector<Obstacle> obstacles = makeSlalomScenario();
 
 // // ---- SCENARIO: Bubbles.
 // std::vector<Obstacle> obstacles = {
@@ -120,12 +144,6 @@ inline double clearanceLossHess(const double c, const double c_free) {
     const double p = c_free - c;
     return p <= 0.0 ? 0.0 : 12 * (square(p) / quart(c_free));
 }
-
-// // Loss for going outside the environment boundary.
-// inline double boundaryLoss(const Box& box, const StateVector& state) {
-//     const double clearance = box.clearance(state);
-//     return boundary_loss_weight * clearanceLoss(clearance, clearance_free);
-// }
 
 inline double obstacleLoss(const Obstacle& obstacle, const StateVector& state) {
     const double clearance = obstacle.clearance(state);

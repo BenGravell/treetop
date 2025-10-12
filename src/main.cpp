@@ -230,6 +230,10 @@ int main() {
 
         // Draw the obstacle
         for (const Obstacle& obstacle : obstacles) {
+            // Skip drawing the border obstacles
+            if (!((X_MIN <= obstacle.center.x) && (obstacle.center.x <= X_MAX) && (Y_MIN <= obstacle.center.y) && (obstacle.center.y <= Y_MAX))) {
+                continue;
+            }
             const Vector2 obstacle_center_ss = state2screen(obstacle.center);
             const double obstacle_radius_ss = obstacle.radius * SCALE_SS;
             DrawCircleV(obstacle_center_ss, obstacle_radius_ss, COLOR_OBSTACLE);
