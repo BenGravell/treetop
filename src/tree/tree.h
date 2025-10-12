@@ -194,7 +194,7 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
     // Current numbers are hardcoded to match what is in
     // problem.h -> makeProblem() -> terminal_state_params
     // and set as a factor of those thresholds.
-    static constexpr double tol_factor = 1.0;
+    static constexpr double tol_factor = 10.0;
     const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);
     const bool dy_hit = std::abs(dy) < (tol_factor * 0.01);
     const bool dyaw_hit = std::abs(dyaw) < (tol_factor * 0.02);
