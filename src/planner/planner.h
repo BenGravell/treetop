@@ -8,7 +8,7 @@
 #include "ilqr/solver_settings.h"
 #include "tree/tree.h"
 
-static constexpr int NUM_NODE_ATTEMPTS = 10000;
+static constexpr int NUM_NODE_ATTEMPTS = 12000;
 
 struct TimingInfo {
     int tree_exp;  // ms
@@ -24,7 +24,7 @@ struct PlannerOutputs {
 };
 
 struct Planner {
-    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm,     const SamplingSettings& sampling_settings) {
+    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const SamplingSettings& sampling_settings) {
         const float clock_start = GetTime();
 
         Tree tree;
@@ -106,7 +106,6 @@ struct Planner {
     }
 
     static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
-
         const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, sampling_settings);
         const Path path = tree.extractPathToGoal();
         auto action_sequence = convertPathToActionSequence(path);
