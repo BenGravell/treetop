@@ -4,24 +4,6 @@
 #include "core/trajectory.h"
 #include "core/util.h"
 
-// TODO for boundaryLoss
-// struct Box {
-//     const double left;
-//     const double right;
-//     const double bottom;
-//     const double top;
-
-//     double clearance(const StateVector& state) const {
-//         const double c_left = state(0) - left;
-//         const double c_right = right - state(0);
-//         const double c_bottom = state(1) - bottom;
-//         const double c_top = top - state(1);
-//         const double c_x = std::min(c_left, c_right);
-//         const double c_y = std::min(c_bottom, c_top);
-//         return std::min(c_x, c_y);
-//     }
-// };
-
 inline Eigen::Vector2d positionDelta(const Vector2& position, const StateVector& state) {
     return state.head(2) - Eigen::Vector2d(position.x, position.y);
 }
