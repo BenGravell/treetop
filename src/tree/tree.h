@@ -356,7 +356,7 @@ struct Tree {
         // Add zero-action nodes.
         growZap();
 
-        if (warm_traj) {
+        if (sampling_settings.use_warm && warm_traj) {
             // Re-rollout the warm-start actions from the given start.
             // This mutates warm->traj.
             Trajectory<TRAJ_LENGTH_OPT> new_warm_traj;
