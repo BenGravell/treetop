@@ -119,22 +119,4 @@ struct Planner {
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
-
-    static PlannerOutputs planTrajOptOnly(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
-        const Tree tree;
-        static constexpr int tree_exp_clock_time = 0;
-
-        ActionSequence<TRAJ_LENGTH_OPT> action_sequence = warm ? warm->traj.action_sequence : ActionSequence<TRAJ_LENGTH_OPT>::Zero();
-
-        if (use_action_jitter) {
-            // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
-            addJitter(action_sequence);
-        }
-
-        const Path path;
-
-        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
-
-        return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
-    }
 };
