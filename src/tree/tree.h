@@ -241,6 +241,18 @@ struct StateCloud {
 
 typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StateCloud>, StateCloud, 4 /* dimension */> KDTree;
 
+struct NodeAndValue {
+    NodePtr node{nullptr};
+    double value{std::numeric_limits<double>::infinity()};
+
+    void compareWith(const NodePtr& node_other, const double value_other) {
+        if (value_other < value) {
+            node = node_other;
+            value = value_other;
+        }
+    }
+};
+
 struct Tree {
     Layers layers;
 
@@ -251,33 +263,7 @@ struct Tree {
         nanoflann::KNNResultSet<double> resultSet(1);
         resultSet.init(&ret_index, &out_dist_sqr);
         zap_kdtree.findNeighbors(resultSet, target.data());
-
-        NodePtr nearest_node = layers[target_time_ix - 1][ret_index];
-
-        return nearest_node;
-    }
-
-    // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
-    const NodePtr getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
-        double min_cost_to_come = std::numeric_limits<double>::max();
-        NodePtr nearest_node = nullptr;
-        const Nodes& nodes = layers[target_time_ix - 1];
-        for (NodePtr node : nodes) {
-            // Steer from node to target.
-            const bool constrain = false;
-            const auto steer_outputs = steer(node->state, target, constrain);
-
-            // Check if cost-to-come is improved relative to current best.
-            const double cost_to_come = node->cost_to_come + steer_outputs.cost;
-            const bool cost_improved = cost_to_come < min_cost_to_come;
-
-            if (cost_improved) {
-                min_cost_to_come = cost_to_come;
-                nearest_node = node;
-            }
-        }
-
-        return nearest_node;
+        return layers[target_time_ix - 1][ret_index];
     }
 
     void addNode(const NodePtr& node, const int time_ix) {
@@ -405,12 +391,18 @@ struct Tree {
     }
 
     const NodePtr getGoalParent(const StateVector& goal) const {
-        double min_cost_to_come = std::numeric_limits<double>::max();
-        NodePtr goal_parent = nullptr;
+        NodeAndValue min_dist_to_goal_nv{};
+        NodeAndValue min_dist_to_goal_violation_free_nv{};
+        NodeAndValue min_cost_to_come_violation_free_nv{};
+
         for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
             const bool constrain = true;
             const auto steer_outputs = steer(node->state, goal, constrain);
+
+            const double dist_to_goal = distanceHeuristic(steer_outputs.traj.stateTerminal(), goal);
+
+            min_dist_to_goal_nv.compareWith(node, dist_to_goal);
 
             if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
                 continue;
@@ -418,29 +410,34 @@ struct Tree {
             if (outsideEnvironment(steer_outputs.traj)) {
                 continue;
             }
-            if (!checkTargetHit(node->state, goal)) {
+
+            min_dist_to_goal_violation_free_nv.compareWith(node, dist_to_goal);
+
+            if (!checkTargetHit(steer_outputs.traj.stateTerminal(), goal)) {
                 continue;
             }
 
-            // Check if cost-to-come is improved relative to current best.
             const double cost_to_come = node->cost_to_come + steer_outputs.cost;
-            const bool cost_improved = cost_to_come < min_cost_to_come;
 
-            if (cost_improved) {
-                min_cost_to_come = cost_to_come;
-                goal_parent = node;
-            }
+            min_cost_to_come_violation_free_nv.compareWith(node, cost_to_come);
         }
 
-        // Fallback in case collision and goal-hit checks discarded everything.
-        // NOTE: This should produce non-nullptr node_nearest_goal with full parent chain to root since we added zero-action fallback earlier.
-        if (goal_parent == nullptr) {
-            goal_parent = getNearestCostToCome(goal, TIME_IX_GOAL);
+        // Hierarchy of needs
+
+        if (min_cost_to_come_violation_free_nv.node != nullptr) {
+            return min_cost_to_come_violation_free_nv.node;
         }
 
-        assert(goal_parent != nullptr);
+        if (min_dist_to_goal_violation_free_nv.node != nullptr) {
+            return min_dist_to_goal_violation_free_nv.node;
+        }
 
-        return goal_parent;
+        if (min_dist_to_goal_nv.node != nullptr) {
+            return min_dist_to_goal_nv.node;
+        }
+
+        // Last ditch fallback
+        return layers[TIME_IX_GOAL - 1].front();
     }
 
     void growGoalNode(const StateVector& goal) {
