@@ -84,15 +84,12 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
     const double dyaw = delta(2);
     const double dv = delta(3);
 
-    // TODO use the TerminalStateParams.
-    // Current numbers are hardcoded to match what is in
+    // NOTE: These are much looser than
     // problem.h -> makeProblem() -> terminal_state_params
-    // and set as a factor of those thresholds.
-    static constexpr double tol_factor = 10.0;
-    const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);
-    const bool dy_hit = std::abs(dy) < (tol_factor * 0.01);
-    const bool dyaw_hit = std::abs(dyaw) < (tol_factor * 0.02);
-    const bool dv_hit = std::abs(dv) < (tol_factor * 0.01);
+    const bool dx_hit = std::abs(dx) < 1.0;
+    const bool dy_hit = std::abs(dy) < 1.0;
+    const bool dyaw_hit = std::abs(dyaw) < 1.0;
+    const bool dv_hit = std::abs(dv) < 1.0;
 
     return dx_hit && dy_hit && dyaw_hit && dv_hit;
 }
