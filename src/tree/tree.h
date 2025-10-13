@@ -86,10 +86,12 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
 
     // NOTE: These are much looser than
     // problem.h -> makeProblem() -> terminal_state_params
-    const bool dx_hit = std::abs(dx) < 1.0;
-    const bool dy_hit = std::abs(dy) < 1.0;
-    const bool dyaw_hit = std::abs(dyaw) < 1.0;
-    const bool dv_hit = std::abs(dv) < 1.0;
+    // to encourage choosing a trajectory in the lowest cost homotopy, 
+    // even if it is not perfectly goal-reaching
+    const bool dx_hit = std::abs(dx) < 2.0;
+    const bool dy_hit = std::abs(dy) < 2.0;
+    const bool dyaw_hit = std::abs(dyaw) < 60.0 * (2.0 * M_PI / 360.0);
+    const bool dv_hit = std::abs(dv) < 2.0;
 
     return dx_hit && dy_hit && dyaw_hit && dv_hit;
 }
