@@ -26,6 +26,12 @@ const double PI = nanoflann::pi_const<double>();
 #include "tree/sampling.h"
 #include "tree/steer.h"
 
+// Settings
+
+// Trajectory optimization time is linearly proportional to this number.
+// Good results if chosen in proportion to NUM_NODE_ATTEMPTS in planner.h
+static constexpr int num_path_candidates = 2;
+
 // Number of steering segments in a trajectory optimization trajectory.
 // Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
 static constexpr int NUM_STEER_SEGMENTS = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
@@ -378,8 +384,6 @@ struct Tree {
     }
 
     std::vector<Path> getPathCandidates() const {
-        static constexpr int num_path_candidates = 3;
-
         const Nodes& goal_nodes = layers[TIME_IX_GOAL];
         std::vector<Path> candidates;
         candidates.reserve(num_path_candidates);
