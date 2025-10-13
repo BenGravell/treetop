@@ -351,14 +351,15 @@ int main() {
 
         // Column 2 - planner stats
         const double v_avg = planner_outputs.solution.traj.state_sequence.row(3).cwiseAbs().mean();
-        DrawTextEx(mono_font, TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("          Pre-opt cost %5.3f", planner_outputs.cost_pre_opt), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         int num_nodes = 0;
         for (const Nodes& nodes : planner_outputs.tree.layers) {
             num_nodes += nodes.size();
         }
-        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 4 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
 
         // Time plots.
         {

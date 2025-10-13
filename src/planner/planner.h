@@ -20,6 +20,7 @@ struct PlannerOutputs {
     Path path;
     Solution<TRAJ_LENGTH_OPT> solution;
     Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
+    double cost_pre_opt;
     TimingInfo timing_info;
 };
 
@@ -53,7 +54,7 @@ struct Planner {
         return action_sequence;
     }
 
-    static std::tuple<Solution<TRAJ_LENGTH_OPT>, Trajectory<TRAJ_LENGTH_OPT>, int> optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
+    static std::tuple<Solution<TRAJ_LENGTH_OPT>, Trajectory<TRAJ_LENGTH_OPT>, double, int> optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
         const float clock_start = GetTime();
 
         // Define the optimal control problem.
@@ -62,6 +63,7 @@ struct Planner {
         // Get the pre-optimization trajectory for diagnostics later.
         Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
         rolloutOpenLoop(action_sequence, start, traj_pre_opt);
+        const double cost_pre_opt = softLoss(traj_pre_opt);
 
         // Solver settings.
         const SolverSettings settings = SolverSettings();
@@ -79,7 +81,7 @@ struct Planner {
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
 
-        return {solution, traj_pre_opt, clock_time};
+        return {solution, traj_pre_opt, cost_pre_opt, clock_time};
     }
 
     template <int N>
@@ -115,8 +117,8 @@ struct Planner {
             addJitter(action_sequence);
         }
 
-        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
+        const auto [solution, traj_pre_opt, cost_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
 
-        return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
+        return {tree, path, solution, traj_pre_opt, cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 };
