@@ -24,6 +24,13 @@ struct PlannerOutputs {
     TimingInfo timing_info;
 };
 
+struct TrajOptOutputs {
+    Solution<TRAJ_LENGTH_OPT> solution;
+    Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
+    double cost_pre_opt;
+    int clock_time;
+};
+
 struct Planner {
     static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const SamplingSettings& sampling_settings) {
         const float clock_start = GetTime();
@@ -54,7 +61,7 @@ struct Planner {
         return action_sequence;
     }
 
-    static std::tuple<Solution<TRAJ_LENGTH_OPT>, Trajectory<TRAJ_LENGTH_OPT>, double, int> optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
+    static TrajOptOutputs optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
         const float clock_start = GetTime();
 
         // Define the optimal control problem.
@@ -109,16 +116,33 @@ struct Planner {
 
     static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
         const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, sampling_settings);
-        const Path path = tree.extractPathToGoal();
-        auto action_sequence = convertPathToActionSequence(path);
 
-        if (use_action_jitter) {
-            // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
-            addJitter(action_sequence);
+        const std::vector<Path>& path_candidates = tree.getPathCandidates();
+
+        double best_post_opt_cost = std::numeric_limits<double>::infinity();
+        TrajOptOutputs best_traj_opt_outputs;
+        Path best_path;
+
+        int traj_opt_clock_time = 0;
+
+        for (const Path& path : path_candidates) {
+            auto action_sequence = convertPathToActionSequence(path);
+
+            if (use_action_jitter) {
+                // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
+                addJitter(action_sequence);
+            }
+
+            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
+            traj_opt_clock_time += traj_opt_outputs.clock_time;
+
+            if (traj_opt_outputs.solution.cost < best_post_opt_cost) {
+                best_post_opt_cost = traj_opt_outputs.solution.cost;
+                best_traj_opt_outputs = traj_opt_outputs;
+                best_path = path;
+            }
         }
 
-        const auto [solution, traj_pre_opt, cost_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
-
-        return {tree, path, solution, traj_pre_opt, cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
+        return {tree, best_path, best_traj_opt_outputs.solution, best_traj_opt_outputs.traj_pre_opt, best_traj_opt_outputs.cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 };

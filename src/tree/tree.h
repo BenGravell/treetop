@@ -86,7 +86,7 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
 
     // NOTE: These are much looser than
     // problem.h -> makeProblem() -> terminal_state_params
-    // to encourage choosing a trajectory in the lowest cost homotopy, 
+    // to encourage choosing a trajectory in the lowest cost homotopy,
     // even if it is not perfectly goal-reaching
     const bool dx_hit = std::abs(dx) < 2.0;
     const bool dy_hit = std::abs(dy) < 2.0;
@@ -278,74 +278,62 @@ struct Tree {
         }
     }
 
-    const NodePtr getGoalParent(const StateVector& goal) const {
-        NodeAndValue min_dist_to_goal_nv{};
-        NodeAndValue min_dist_to_goal_violation_free_nv{};
-        NodeAndValue min_cost_to_come_violation_free_nv{};
-
-        for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
+    void growGoalNodes(const StateVector& goal) {
+        // Add goal nodes for all the collision-free goal-reaching parents.
+        for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
             const bool constrain = true;
-            const SteerOutputs steer_outputs = steer(node->state, goal, constrain);
-
-            // Use simple Euclidean distance squared
-            const double dist_to_goal = (steer_outputs.traj.stateTerminal() - goal).squaredNorm();
-
-            min_dist_to_goal_nv.compareWith(node, dist_to_goal);
+            const SteerOutputs steer_outputs = steer(parent->state, goal, constrain);
 
             if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
                 continue;
             }
-
-            min_dist_to_goal_violation_free_nv.compareWith(node, dist_to_goal);
-
             if (!checkTargetHit(steer_outputs.traj.stateTerminal(), goal)) {
                 continue;
             }
 
-            const double cost_to_come = node->cost_to_come + steer_outputs.cost;
+            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const double cost = steer_outputs.cost;
+            const StateVector& state = traj.stateTerminal();
 
-            min_cost_to_come_violation_free_nv.compareWith(node, cost_to_come);
+            // Add node.
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal};
+            const NodePtr node_ptr = std::make_shared<Node>(node);
+            addNode(node_ptr, TIME_IX_GOAL);
         }
 
-        // Hierarchy of needs
+        // Fallback to make sure there is at least one goal node.
+        if (layers[TIME_IX_GOAL].empty()) {
+            // Build the zero-action-point cloud.
+            StateCloud zap_cloud;
+            const Nodes& prev_nodes = layers[TIME_IX_GOAL - 1];
+            zap_cloud.pts.reserve(prev_nodes.size());
+            std::transform(
+                prev_nodes.begin(), prev_nodes.end(),
+                std::back_inserter(zap_cloud.pts),
+                [](const NodePtr& node) {
+                    return rolloutZeroAction(node->state, TRAJ_DURATION_STEER);
+                });
 
-        if (min_cost_to_come_violation_free_nv.node != nullptr) {
-            return min_cost_to_come_violation_free_nv.node;
+            // Build the zero-action-point KD tree index.
+            KDTree zap_kdtree(4, zap_cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+            zap_kdtree.buildIndex();
+
+            const NodePtr parent = getNearest(goal, TIME_IX_GOAL, zap_kdtree);
+
+            // Steer from node to target.
+            const bool constrain = true;
+            const SteerOutputs steer_outputs = steer(parent->state, goal, constrain);
+
+            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const double cost = steer_outputs.cost;
+            const StateVector& state = traj.stateTerminal();
+
+            // Add node.
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal};
+            const NodePtr node_ptr = std::make_shared<Node>(node);
+            addNode(node_ptr, TIME_IX_GOAL);
         }
-
-        if (min_dist_to_goal_violation_free_nv.node != nullptr) {
-            return min_dist_to_goal_violation_free_nv.node;
-        }
-
-        if (min_dist_to_goal_nv.node != nullptr) {
-            return min_dist_to_goal_nv.node;
-        }
-
-        // Last ditch fallback
-        return layers[TIME_IX_GOAL - 1].front();
-    }
-
-    void growGoalNode(const StateVector& goal) {
-        // Get the parent.
-        const NodePtr parent = getGoalParent(goal);
-
-        // Steer from parent to goal.
-        const bool constrain = true;
-        const SteerOutputs steer_outputs = steer(parent->state, goal, constrain);
-        const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
-        const double cost = steer_outputs.cost;
-        const StateVector& state = traj.stateTerminal();
-
-        // Add node.
-        // This ensures the tree always has one node in layers[TIME_IX_GOAL].
-        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal};
-        const NodePtr node_ptr = std::make_shared<Node>(node);
-        addNode(node_ptr, TIME_IX_GOAL);
-    }
-
-    NodePtr getGoalNode() const {
-        return layers.back().front();
     }
 
     void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const SamplingSettings& sampling_settings) {
@@ -372,14 +360,13 @@ struct Tree {
             growStages(goal, warm_traj, num_node_attempts, sampling_settings);
         }
 
-        // Add goal node.
-        growGoalNode(goal);
+        // Add goal nodes.
+        growGoalNodes(goal);
     }
 
-    Path extractPathToGoal() const {
+    Path extractPathToGoal(NodePtr node) const {
         // Reconstruct the path by traversing parent pointers.
         Path path;
-        NodePtr node = getGoalNode();
         for (int time_ix = TIME_IX_GOAL; time_ix >= 1; --time_ix) {
             path[time_ix - 1] = node;
             node = node->parent;
@@ -388,5 +375,42 @@ struct Tree {
         assert(path.front()->parent->parent == nullptr);
 
         return path;
+    }
+
+    std::vector<Path> getPathCandidates() const {
+        static constexpr int num_path_candidates = 3;
+
+        const Nodes& goal_nodes = layers[TIME_IX_GOAL];
+        std::vector<Path> candidates;
+        candidates.reserve(num_path_candidates);
+
+        // Always include the lowest cost-to-come candidate.
+        auto best_it = std::min_element(goal_nodes.begin(), goal_nodes.end(),
+                                        [](const NodePtr& a, const NodePtr& b) {
+                                            return a->cost_to_come < b->cost_to_come;
+                                        });
+        candidates.push_back(extractPathToGoal(*best_it));
+
+        // Randomly select the rest (if available).
+        if (goal_nodes.size() > 1) {
+            // Create a list of indices excluding the best one.
+            std::vector<size_t> indices;
+            indices.reserve(goal_nodes.size() - 1);
+            for (size_t i = 0; i < goal_nodes.size(); ++i) {
+                if (goal_nodes[i] != *best_it) {
+                    indices.push_back(i);
+                }
+            }
+
+            // Shuffle and select random nodes.
+            std::shuffle(indices.begin(), indices.end(), rng);
+
+            int num_random = std::min<int>(num_path_candidates - 1, indices.size());
+            for (int i = 0; i < num_random; ++i) {
+                candidates.push_back(extractPathToGoal(goal_nodes[indices[i]]));
+            }
+        }
+
+        return candidates;
     }
 };
