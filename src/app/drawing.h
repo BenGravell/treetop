@@ -60,6 +60,8 @@ void DrawTree(const Tree& tree) {
                 color = coolColormap(c);
             } else if (node->reason == SampleReason::kWarm) {
                 color = warmColormap(c);
+            } else if (node->reason == SampleReason::kGoal) {
+                color = GOLD;
             }
             color = Fade(color, 0.8f);
 
