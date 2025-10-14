@@ -31,4 +31,7 @@ struct Node {
 
     // Reason why this node was sampled.
     const SampleReason reason;
+
+    // Whether this node is near the goal.
+    const bool near_goal{false};
 };

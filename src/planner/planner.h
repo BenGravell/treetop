@@ -123,6 +123,12 @@ struct Planner {
         TrajOptOutputs best_traj_opt_outputs;
         Path best_path;
 
+        double best_post_opt_goal_hit_cost = std::numeric_limits<double>::infinity();
+        TrajOptOutputs best_goal_hit_traj_opt_outputs;
+        Path best_goal_hit_path;
+        
+        bool found_best_goal_hit = false;
+
         int traj_opt_clock_time = 0;
 
         for (const Path& path : path_candidates) {
@@ -141,8 +147,22 @@ struct Planner {
                 best_traj_opt_outputs = traj_opt_outputs;
                 best_path = path;
             }
+
+            if (!checkTargetHit(traj_opt_outputs.solution.traj.stateTerminal(), goal)) {
+                continue;
+            }
+
+            if (traj_opt_outputs.solution.cost < best_post_opt_goal_hit_cost) {
+                best_post_opt_goal_hit_cost = traj_opt_outputs.solution.cost;
+                best_goal_hit_traj_opt_outputs = traj_opt_outputs;
+                best_goal_hit_path = path;
+                found_best_goal_hit = true;
+            }
         }
 
-        return {tree, best_path, best_traj_opt_outputs.solution, best_traj_opt_outputs.traj_pre_opt, best_traj_opt_outputs.cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
+        const TrajOptOutputs& ret_traj_opt_outputs = found_best_goal_hit ? best_goal_hit_traj_opt_outputs : best_traj_opt_outputs;
+        const Path& ret_path = found_best_goal_hit ? best_goal_hit_path : best_path;
+
+        return {tree, ret_path, ret_traj_opt_outputs.solution, ret_traj_opt_outputs.traj_pre_opt, ret_traj_opt_outputs.cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 };

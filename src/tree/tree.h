@@ -83,21 +83,32 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal, con
 
 using Path = std::array<NodePtr, NUM_STEER_SEGMENTS>;
 
-inline bool checkTargetHit(const StateVector& state, const StateVector& target) {
+inline bool checkTargetHit(const StateVector& state, const StateVector& target, const bool relax = false) {
     const StateVector delta = state - target;
     const double dx = delta(0);
     const double dy = delta(1);
     const double dyaw = delta(2);
     const double dv = delta(3);
 
+    // These are the same as problem.h -> makeProblem() -> terminal_state_params
+    double x_tol = 0.01;
+    double y_tol = 0.01;
+    double yaw_tol = 0.02;
+    double v_tol = 0.01;
     // NOTE: These are much looser than
     // problem.h -> makeProblem() -> terminal_state_params
     // to encourage choosing a trajectory in the lowest cost homotopy,
     // even if it is not perfectly goal-reaching
-    const bool dx_hit = std::abs(dx) < 2.0;
-    const bool dy_hit = std::abs(dy) < 2.0;
-    const bool dyaw_hit = std::abs(dyaw) < 60.0 * (2.0 * M_PI / 360.0);
-    const bool dv_hit = std::abs(dv) < 2.0;
+    if (relax) {
+        x_tol = 2.0;
+        y_tol = 2.0;
+        yaw_tol = 60.0 * (2.0 * M_PI / 360.0);
+        v_tol = 2.0;
+    }
+    const bool dx_hit = std::abs(dx) < x_tol;
+    const bool dy_hit = std::abs(dy) < y_tol;
+    const bool dyaw_hit = std::abs(dyaw) < yaw_tol;
+    const bool dv_hit = std::abs(dv) < v_tol;
 
     return dx_hit && dy_hit && dyaw_hit && dv_hit;
 }
@@ -294,7 +305,9 @@ struct Tree {
             if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
                 continue;
             }
-            if (!checkTargetHit(steer_outputs.traj.stateTerminal(), goal)) {
+            const bool near_goal = checkTargetHit(steer_outputs.traj.stateTerminal(), goal, false);
+            const bool nearish_goal = checkTargetHit(steer_outputs.traj.stateTerminal(), goal, true);
+            if (!nearish_goal) {
                 continue;
             }
 
@@ -303,7 +316,7 @@ struct Tree {
             const StateVector& state = traj.stateTerminal();
 
             // Add node.
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal};
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, TIME_IX_GOAL);
         }
@@ -387,12 +400,25 @@ struct Tree {
         const Nodes& goal_nodes = layers[TIME_IX_GOAL];
         std::vector<Path> candidates;
         candidates.reserve(num_path_candidates);
+            
+        // Collect only nodes that are near the goal.
+        std::vector<NodePtr> near_goal_nodes;
+        near_goal_nodes.reserve(goal_nodes.size());
+        for (const NodePtr& node : goal_nodes) {
+            if (node->near_goal) {
+                near_goal_nodes.push_back(node);
+            }
+        }
 
-        // Always include the lowest cost-to-come candidate.
-        auto best_it = std::min_element(goal_nodes.begin(), goal_nodes.end(),
-                                        [](const NodePtr& a, const NodePtr& b) {
-                                            return a->cost_to_come < b->cost_to_come;
-                                        });
+        // Choose the best node among near-goal nodes if available; otherwise, among all.
+        const auto& candidates_source = near_goal_nodes.empty() ? goal_nodes : near_goal_nodes;
+
+        auto best_it = std::min_element(
+            candidates_source.begin(), candidates_source.end(),
+            [](const NodePtr& a, const NodePtr& b) {
+                return a->cost_to_come < b->cost_to_come;
+            });
+
         candidates.push_back(extractPathToGoal(*best_it));
 
         // Randomly select the rest (if available).
