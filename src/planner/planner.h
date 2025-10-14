@@ -126,7 +126,7 @@ struct Planner {
         double best_post_opt_goal_hit_cost = std::numeric_limits<double>::infinity();
         TrajOptOutputs best_goal_hit_traj_opt_outputs;
         Path best_goal_hit_path;
-        
+
         bool found_best_goal_hit = false;
 
         int traj_opt_clock_time = 0;
