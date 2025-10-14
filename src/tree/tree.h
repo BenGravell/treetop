@@ -63,19 +63,12 @@ struct SteerOutputs {
     double cost;
 };
 
-inline SteerOutputs steer(const StateVector& start, const StateVector& goal, const bool constrain) {
-    // Cubic polynomial steering.
+inline SteerOutputs steer(const StateVector& start, const StateVector& goal) {
     const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, TRAJ_DURATION_STEER);
 
-    // Rollout.
     Trajectory<TRAJ_LENGTH_STEER> traj;
-    if (constrain) {
-        rolloutOpenLoopConstrained(action_sequence, start, traj);
-    } else {
-        rolloutOpenLoop(action_sequence, start, traj);
-    }
+    rolloutOpenLoopConstrained(action_sequence, start, traj);
 
-    // Calculate cost.
     const double cost = softLoss(traj);
 
     return {traj, cost};
@@ -187,8 +180,7 @@ struct Tree {
         // NOTE: this ignores collisions.
         NodePtr parent = getRootNode();
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            const bool constrain = true;
-            const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), constrain);
+            const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER));
             const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
@@ -247,8 +239,7 @@ struct Tree {
         // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
         // NOTE: Using projection tends to produce bang-bang trajectories.
         // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
-        const bool constrain = true;
-        const SteerOutputs steer_outputs = steer(parent->state, state, constrain);
+        const SteerOutputs steer_outputs = steer(parent->state, state);
         const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
         const double cost = steer_outputs.cost;
 
@@ -299,8 +290,7 @@ struct Tree {
         // Add goal nodes for all the collision-free goal-reaching parents.
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
-            const bool constrain = true;
-            const SteerOutputs steer_outputs = steer(parent->state, goal, constrain);
+            const SteerOutputs steer_outputs = steer(parent->state, goal);
 
             if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
                 continue;
@@ -341,8 +331,7 @@ struct Tree {
             const NodePtr parent = getNearest(goal, TIME_IX_GOAL, zap_kdtree);
 
             // Steer from node to target.
-            const bool constrain = true;
-            const SteerOutputs steer_outputs = steer(parent->state, goal, constrain);
+            const SteerOutputs steer_outputs = steer(parent->state, goal);
 
             const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
