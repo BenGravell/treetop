@@ -69,7 +69,7 @@ struct Planner {
 
         // Get the pre-optimization trajectory for diagnostics later.
         Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
-        rolloutOpenLoop(action_sequence, start, traj_pre_opt);
+        rolloutOpenLoopConstrained(action_sequence, start, traj_pre_opt);
         const double cost_pre_opt = softLoss(traj_pre_opt);
 
         // Solver settings.
@@ -81,6 +81,11 @@ struct Planner {
 
         // Solve the optimal control problem.
         Solution<TRAJ_LENGTH_OPT> solution = solver.solve(action_sequence);
+
+        // Re-rollout the solution action sequence to ensure the solution trajectory is consistent & honors action constraints.
+        Trajectory<TRAJ_LENGTH_OPT> traj_post_opt;
+        rolloutOpenLoopConstrained(solution.traj.action_sequence, start, traj_post_opt);
+        solution.traj = traj_post_opt;
 
         // Assign the cost using arbitrary loss.
         solution.cost = softLoss(solution.traj);

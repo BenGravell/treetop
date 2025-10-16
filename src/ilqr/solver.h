@@ -113,7 +113,7 @@ class Solver {
         // Initialize trajectory, policy, cost, and regularization.
         Trajectory<N> traj;
         Trajectory<N> traj_dummy;
-        rolloutOpenLoop(action_sequence, problem_->initial_state, traj);
+        rolloutOpenLoopConstrained(action_sequence, problem_->initial_state, traj);
         Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double reg = settings_->regularization_init;
@@ -154,7 +154,7 @@ class Solver {
         // Initialize trajectory, policy, cost, and regularization.
         Trajectory<N> traj;
         Trajectory<N> traj_dummy;
-        rolloutOpenLoop(action_sequence, problem_->initial_state, traj);
+        rolloutOpenLoopConstrained(action_sequence, problem_->initial_state, traj);
         Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double cost_old = cost;
