@@ -5,6 +5,7 @@
     },
     "include": [
         "build/conan/release/CMakePresets.json",
-        "build/conan/web/CMakePresets.json"
+        "build/conan/web/CMakePresets.json",
+        "build/conan/debug/CMakePresets.json"
     ]
 }
