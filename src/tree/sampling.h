@@ -76,7 +76,7 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
 inline StateVector sampleWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, const int time_ix) {
     const int stage_ix = time_ix * TRAJ_LENGTH_STEER;
     const StateVector& state = warm_traj.stateAt(stage_ix);
-    static constexpr double perturb_factor = 2.0;
+    static constexpr double perturb_factor = 4.0;
     return sampleNear(state, perturb_factor);
 }
 
@@ -86,7 +86,7 @@ inline StateAndReason sample(const StateVector& goal, const std::optional<Trajec
     // Sample near the goal.
     const bool sample_near_goal{selector < goal_sampling_proba};
     if (settings.use_goal && sample_near_goal) {
-        static constexpr double perturb_factor = 1.0;
+        static constexpr double perturb_factor = 2.0;
         return {sampleNear(goal, perturb_factor), SampleReason::kGoal};
     }
 
