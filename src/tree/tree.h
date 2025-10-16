@@ -161,9 +161,10 @@ struct Tree {
         layers[time_ix].push_back(node);
     }
 
-    void growRootNode(const StateVector& start) {
+    void growRootNode(const StateVector& start, const StateVector& goal) {
         // Root node is the only node in tree.layers[0]
-        const Node root{start, nullptr, std::nullopt, 0.0, 0.0, SampleReason::kCold};
+        const bool near_goal = checkTargetHit(start, goal, false);
+        const Node root{start, nullptr, std::nullopt, 0.0, 0.0, SampleReason::kCold, near_goal};
         const NodePtr root_ptr = std::make_shared<Node>(root);
         addNode(root_ptr, 0);
     }
@@ -172,7 +173,7 @@ struct Tree {
         return layers.front().front();
     }
 
-    void growZap() {
+    void growZap(const StateVector& goal) {
         // Add zero action nodes as a fallback.
         // This ensures there is always at least one node in each layer,
         // which is needed later for the final steer to goal node and extractPathToNode call,
@@ -184,17 +185,18 @@ struct Tree {
             const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kZeroActionPoint};
+            const bool near_goal = checkTargetHit(state, goal, false);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kZeroActionPoint, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
         }
     }
 
-    void growWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj) {
+    void growWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, const StateVector& goal) {
         // Break warm_traj up into several smaller sub-nodes.
         NodePtr parent = getRootNode();
-        for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
+        for (int time_ix = 1; time_ix <= TIME_IX_GOAL; ++time_ix) {
             // Infer the indices into the whole warm_traj for the current sub-node.
             const int ix_offset = (time_ix - 1) * TRAJ_LENGTH_STEER;
             // Form the sub-node.
@@ -208,7 +210,8 @@ struct Tree {
             }
             const double cost = softLoss(traj);
             const StateVector& state = traj.stateTerminal();
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kWarm};
+            const bool near_goal = checkTargetHit(state, goal, false);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kWarm, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -252,7 +255,8 @@ struct Tree {
         }
 
         // Create node from sampled state and add to the tree.
-        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason};
+        const bool near_goal = checkTargetHit(state, goal, false);
+        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, near_goal};
         const NodePtr node_ptr = std::make_shared<Node>(node);
         addNode(node_ptr, time_ix);
     }
@@ -291,19 +295,18 @@ struct Tree {
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
+            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const StateVector& state = traj.stateTerminal();
+            const double cost = steer_outputs.cost;
 
-            if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
+            if (obstaclesCollidesWith(obstacles, traj)) {
                 continue;
             }
-            const bool near_goal = checkTargetHit(steer_outputs.traj.stateTerminal(), goal, false);
-            const bool nearish_goal = checkTargetHit(steer_outputs.traj.stateTerminal(), goal, true);
+            const bool near_goal = checkTargetHit(state, goal, false);
+            const bool nearish_goal = checkTargetHit(state, goal, true);
             if (!nearish_goal) {
                 continue;
             }
-
-            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
-            const double cost = steer_outputs.cost;
-            const StateVector& state = traj.stateTerminal();
 
             // Add node.
             const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, near_goal};
@@ -330,7 +333,7 @@ struct Tree {
 
             const NodePtr parent = getNearest(goal, TIME_IX_GOAL, zap_kdtree);
 
-            // Steer from node to target.
+            // Steer from node to goal.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
 
             const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
@@ -338,7 +341,8 @@ struct Tree {
             const StateVector& state = traj.stateTerminal();
 
             // Add node.
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal};
+            const bool near_goal = checkTargetHit(state, goal, false);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, TIME_IX_GOAL);
         }
@@ -346,12 +350,12 @@ struct Tree {
 
     void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const SamplingSettings& sampling_settings) {
         // Add root node.
-        growRootNode(start);
+        growRootNode(start, goal);
 
         // Add zero-action nodes.
-        growZap();
+        growZap(goal);
 
-        if (sampling_settings.use_warm && warm_traj) {
+        if (warm_traj) {
             // Re-rollout the warm-start actions from the given start.
             // This mutates warm->traj.
             Trajectory<TRAJ_LENGTH_OPT> new_warm_traj;
@@ -359,7 +363,7 @@ struct Tree {
             warm_traj = new_warm_traj;
 
             // Add warm-start nodes.
-            growWarm(warm_traj.value());
+            growWarm(warm_traj.value(), goal);
         }
 
         // Skip sampling if settings are all disabled
@@ -389,7 +393,7 @@ struct Tree {
         const Nodes& goal_nodes = layers[TIME_IX_GOAL];
         std::vector<Path> candidates;
         candidates.reserve(num_path_candidates);
-            
+
         // Collect only nodes that are near the goal.
         std::vector<NodePtr> near_goal_nodes;
         near_goal_nodes.reserve(goal_nodes.size());
