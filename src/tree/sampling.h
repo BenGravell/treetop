@@ -81,25 +81,58 @@ inline StateVector sampleWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, cons
 }
 
 inline StateAndReason sample(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const SamplingSettings& settings) {
-    const double selector = urand();
+    // Define the base probabilities
+    const double p_goal = goal_sampling_proba;
+    const double p_warm = warm_sampling_proba;
+    const double p_cold = 1.0 - p_goal - p_warm;
 
-    // Sample near the goal.
-    const bool sample_near_goal{selector < goal_sampling_proba};
-    if (settings.use_goal && sample_near_goal) {
-        static constexpr double perturb_factor = 2.0;
-        return {sampleNear(goal, perturb_factor), SampleReason::kGoal};
+    // Compute total active probability
+    double p_total = 0.0;
+    if (settings.use_goal) {
+        p_total += p_goal;
     }
-
-    // Sample around the warm-start trajectory.
-    const bool sample_near_warm{selector < warm_sampling_proba};
-    if (settings.use_warm && warm_traj && sample_near_warm) {
-        return {sampleWarm(warm_traj.value(), time_ix), SampleReason::kWarm};
+    if (settings.use_warm && warm_traj) {
+        p_total += p_warm;
     }
-
-    // Sample cold without any consideration of other information.
     if (settings.use_cold) {
-        return {sampleCold(), SampleReason::kCold};
+        p_total += p_cold;
     }
 
+    if (p_total < 1e-6) {
+        // All disabled: fallback deterministically to goal
+        return {goal, SampleReason::kGoal};
+    }
+
+    // Draw random value in [0, p_total)
+    const double selector = urand(0.0, p_total);
+
+    double acc = 0.0;
+
+    // Sample near goal
+    if (settings.use_goal) {
+        acc += p_goal;
+        if (selector < acc) {
+            static constexpr double perturb_factor = 2.0;
+            return {sampleNear(goal, perturb_factor), SampleReason::kGoal};
+        }
+    }
+
+    // Sample near warm trajectory
+    if (settings.use_warm && warm_traj) {
+        acc += p_warm;
+        if (selector < acc) {
+            return {sampleWarm(warm_traj.value(), time_ix), SampleReason::kWarm};
+        }
+    }
+
+    // Sample cold
+    if (settings.use_cold) {
+        acc += p_cold;
+        if (selector < acc) {
+            return {sampleCold(), SampleReason::kCold};
+        }
+    }
+
+    // Fallback (should not happen)
     return {goal, SampleReason::kGoal};
 }
