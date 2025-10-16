@@ -116,7 +116,7 @@ int main() {
 
     // Toggle-able states
     bool paused = false;
-    bool use_action_jitter = true;
+    bool use_action_jitter = false;
     bool use_warm = true;
     bool use_cold = true;
     bool use_goal = true;
