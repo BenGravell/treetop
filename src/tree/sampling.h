@@ -4,7 +4,7 @@
 #include "core/space.h"
 
 // Sampling settings
-static constexpr double goal_sampling_proba = 0.02;
+static constexpr double goal_sampling_proba = 0.05;
 static constexpr double warm_sampling_proba = 0.20;
 
 struct SamplingSettings {
