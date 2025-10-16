@@ -116,12 +116,12 @@ int main() {
 
     // Toggle-able states
     bool paused = false;
+    bool use_action_jitter = true;
     bool use_warm = true;
     bool use_cold = true;
     bool use_goal = true;
-    SamplingSettings sampling_settings = {use_warm, use_cold, use_goal};
 
-    bool use_action_jitter = true;
+    SamplingSettings sampling_settings = {use_warm, use_cold, use_goal};
 
     bool show_tree = true;
     bool show_pre_opt_traj = true;
