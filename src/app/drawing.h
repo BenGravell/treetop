@@ -42,31 +42,40 @@ void DrawTree(const Tree& tree) {
     // NOTE: NUM_STEER_SEGMENTS + 1 == tree.layers.size()
     // NOTE: start node is tree.layers[0].front()
     // NOTE:  goal node is tree.layers[NUM_STEER_SEGMENTS + 1].front()
-    for (int time_ix = 0; time_ix <= NUM_STEER_SEGMENTS; ++time_ix) {
-        const Nodes& nodes = tree.layers[time_ix];
-        for (const NodePtr& node : nodes) {
-            if (node == nullptr) {
-                continue;
-            }
-            if (node->parent == nullptr) {
-                continue;
-            }
+    static constexpr float line_width = 2.0;
+    // Draw nodes with certain reasons on top of nodes with other reasons.
+    std::vector<SampleReason> reasons{SampleReason::kZeroActionPoint, SampleReason::kCold, SampleReason::kWarm, SampleReason::kGoal};
+    for (const SampleReason reason : reasons) {
+        for (int time_ix = 0; time_ix <= NUM_STEER_SEGMENTS; ++time_ix) {
+            const Nodes& nodes = tree.layers[time_ix];
+            for (const NodePtr& node : nodes) {
+                if (node == nullptr) {
+                    continue;
+                }
+                if (node->parent == nullptr) {
+                    continue;
+                }
+                if (!(node->reason == reason)) {
+                    continue;
+                }
 
-            // Color by time index.
-            static constexpr float line_width = 2.0;
-            const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
-            Color color = COLOR_GRAY_128;
-            if (node->reason == SampleReason::kCold) {
-                color = coolColormap(c);
-            } else if (node->reason == SampleReason::kWarm) {
-                color = warmColormap(c);
-            } else if (node->reason == SampleReason::kGoal) {
-                color = GOLD;
-            }
-            color = Fade(color, 0.8f);
+                // Color
+                const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
+                Color color = COLOR_GRAY_128;
+                if (node->reason == SampleReason::kCold) {
+                    color = coolColormap(c);
+                } else if (node->reason == SampleReason::kWarm) {
+                    color = warmColormap(c);
+                } else if (node->reason == SampleReason::kGoal) {
+                    color = GOLD;
+                } else if (node->reason == SampleReason::kZeroActionPoint) {
+                    color = COLOR_GRAY_128;
+                }
+                color = Fade(color, 0.8f);
 
-            if (node->traj) {
-                DrawTrajectory(node->traj.value(), line_width, color);
+                if (node->traj) {
+                    DrawTrajectory(node->traj.value(), line_width, color);
+                }
             }
         }
     }
