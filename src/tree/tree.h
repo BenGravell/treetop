@@ -211,6 +211,17 @@ struct Tree {
             const double cost = softLoss(traj);
             const StateVector& state = traj.stateTerminal();
             const bool near_goal = checkTargetHit(state, goal, false);
+
+            // Special handling for goal node.
+            // We must only add a goal node from the warm traj if it is nearish to the goal,
+            // same acceptance criteria as in growGoalNodes(), sans collision check.
+            if (time_ix == TIME_IX_GOAL) {
+                const bool nearish_goal = checkTargetHit(state, goal, true);
+                if (!nearish_goal) {
+                    continue;
+                }
+            }
+
             const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kWarm, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
@@ -361,7 +372,9 @@ struct Tree {
             Trajectory<TRAJ_LENGTH_OPT> new_warm_traj;
             rolloutOpenLoopConstrained(warm_traj->action_sequence, start, new_warm_traj);
             warm_traj = new_warm_traj;
+        }
 
+        if (warm_traj) {
             // Add warm-start nodes.
             growWarm(warm_traj.value(), goal);
         }
