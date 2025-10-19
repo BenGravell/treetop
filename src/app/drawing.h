@@ -44,7 +44,7 @@ void DrawTree(const Tree& tree) {
     // NOTE:  goal node is tree.layers[NUM_STEER_SEGMENTS + 1].front()
     static constexpr float line_width = 2.0;
     // Draw nodes with certain reasons on top of nodes with other reasons.
-    std::vector<SampleReason> reasons{SampleReason::kZeroActionPoint, SampleReason::kCold, SampleReason::kWarm, SampleReason::kGoal};
+    std::vector<SampleReason> reasons{SampleReason::kZeroActionPoint, SampleReason::kCold, SampleReason::kWarm, SampleReason::kHot, SampleReason::kGoal};
     for (const SampleReason reason : reasons) {
         for (int time_ix = 0; time_ix <= NUM_STEER_SEGMENTS; ++time_ix) {
             const Nodes& nodes = tree.layers[time_ix];
@@ -66,6 +66,8 @@ void DrawTree(const Tree& tree) {
                     color = coolColormap(c);
                 } else if (node->reason == SampleReason::kWarm) {
                     color = warmColormap(c);
+                } else if (node->reason == SampleReason::kHot) {
+                    color = RED;
                 } else if (node->reason == SampleReason::kGoal) {
                     color = GOLD;
                 } else if (node->reason == SampleReason::kZeroActionPoint) {

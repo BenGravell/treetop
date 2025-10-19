@@ -193,7 +193,7 @@ struct Tree {
         }
     }
 
-    void growWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, const StateVector& goal) {
+    void growHot(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, const StateVector& goal) {
         // Break warm_traj up into several smaller sub-nodes.
         NodePtr parent = getRootNode();
         for (int time_ix = 1; time_ix <= TIME_IX_GOAL; ++time_ix) {
@@ -222,7 +222,7 @@ struct Tree {
                 }
             }
 
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kWarm, near_goal};
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kHot, near_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -376,7 +376,7 @@ struct Tree {
 
         if (warm_traj && use_hot) {
             // Add warm-start nodes, i.e. hot-start the tree.
-            growWarm(warm_traj.value(), goal);
+            growHot(warm_traj.value(), goal);
         }
 
         // Skip sampling if settings are all disabled.

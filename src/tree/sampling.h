@@ -6,6 +6,7 @@
 // Sampling settings
 static constexpr double goal_sampling_proba = 0.05;
 static constexpr double warm_sampling_proba = 0.20;
+static constexpr double cold_sampling_proba = 1.0 - warm_sampling_proba - goal_sampling_proba;
 
 struct SamplingSettings {
     bool use_warm;
@@ -14,10 +15,11 @@ struct SamplingSettings {
 };
 
 enum class SampleReason : uint8_t {
-    kCold = 0,
-    kWarm = 1,
-    kGoal = 2,
-    kZeroActionPoint = 3
+    kZeroActionPoint = 0,
+    kHot = 1,
+    kWarm = 2,
+    kCold = 3,
+    kGoal = 4
 };
 
 struct StateAndReason {
@@ -80,21 +82,16 @@ inline StateVector sampleWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, cons
 }
 
 inline StateAndReason sample(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const SamplingSettings& settings) {
-    // Define the base probabilities
-    const double p_goal = goal_sampling_proba;
-    const double p_warm = warm_sampling_proba;
-    const double p_cold = 1.0 - p_goal - p_warm;
-
     // Compute total active probability
     double p_total = 0.0;
     if (settings.use_goal) {
-        p_total += p_goal;
+        p_total += goal_sampling_proba;
     }
     if (settings.use_warm && warm_traj) {
-        p_total += p_warm;
+        p_total += warm_sampling_proba;
     }
     if (settings.use_cold) {
-        p_total += p_cold;
+        p_total += cold_sampling_proba;
     }
 
     if (p_total < 1e-6) {
@@ -109,7 +106,7 @@ inline StateAndReason sample(const StateVector& goal, const std::optional<Trajec
 
     // Sample goal
     if (settings.use_goal) {
-        acc += p_goal;
+        acc += goal_sampling_proba;
         if (selector < acc) {
             return {goal, SampleReason::kGoal};
         }
@@ -117,7 +114,7 @@ inline StateAndReason sample(const StateVector& goal, const std::optional<Trajec
 
     // Sample near warm trajectory
     if (settings.use_warm && warm_traj) {
-        acc += p_warm;
+        acc += warm_sampling_proba;
         if (selector < acc) {
             return {sampleWarm(warm_traj.value(), time_ix), SampleReason::kWarm};
         }
@@ -125,7 +122,7 @@ inline StateAndReason sample(const StateVector& goal, const std::optional<Trajec
 
     // Sample cold
     if (settings.use_cold) {
-        acc += p_cold;
+        acc += cold_sampling_proba;
         if (selector < acc) {
             return {sampleCold(), SampleReason::kCold};
         }
