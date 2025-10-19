@@ -30,12 +30,21 @@ if(PLATFORM_WEB)
     include_directories(${RAYLIB_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIB})
 
+    # Compiler flags for pthread support
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        "-O3"
+        "-Wall"
+        "-pthread"
+    )
+
     # Emscripten linker flags
     # NOTE: TOTAL_STACK and INITIAL_MEMORY must be high enough to support performance requirements of this app.
     set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_FLAGS "-O3 -Wall \
                     -s USE_GLFW=3 \
                     -s ASYNCIFY \
+                    -s USE_PTHREADS=1 \
+                    -s PTHREAD_POOL_SIZE=8 \
                     -s TOTAL_STACK=64MB \
                     -s INITIAL_MEMORY=128MB \
                     --shell-file ${CMAKE_SOURCE_DIR}/shell.html \
