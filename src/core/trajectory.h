@@ -22,7 +22,7 @@ static constexpr uint64_t TRAJ_LENGTH_OPT = 100;
 static_assert((TRAJ_LENGTH_OPT % TRAJ_LENGTH_STEER) == 0, "TRAJ_LENGTH_OPT must be a multiple of TRAJ_LENGTH_STEER");
 
 // Duration of a single step, seconds
-static constexpr double DT = 0.1;
+static constexpr double DT = 0.2;
 
 // Duration of a steering function trajectory, in seconds.
 static constexpr double TRAJ_DURATION_STEER = DT * TRAJ_LENGTH_STEER;
