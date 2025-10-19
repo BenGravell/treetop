@@ -2,4 +2,4 @@
 
 #include <random>
 
-std::mt19937 rng(std::random_device{}());
+inline thread_local std::mt19937 rng(std::random_device{}());
