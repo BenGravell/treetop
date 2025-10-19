@@ -12,15 +12,12 @@ Color guppyColor(const float x) {
 }
 
 inline Color warmColormap(const float x) {
-    return guppyColor(0.5 + 0.5 * x);
+    return guppyColor(0.5f + 0.5f * x);
 }
 
 inline Color coolColormap(const float x) {
-    return guppyColor(0.5 - 0.5 * x);
+    return guppyColor(0.5f - 0.5f * x);
 }
-
-const Color WARM_RED = warmColormap(0.9f);
-const Color COOL_BLUE = coolColormap(0.9f);
 
 static constexpr Color COLOR_GRAY_008 = {8, 8, 8, 255};
 static constexpr Color COLOR_GRAY_064 = {64, 64, 64, 255};
