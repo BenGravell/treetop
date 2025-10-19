@@ -25,8 +25,8 @@ std::vector<Obstacle> makeSlalomScenario() {
         {{28.0, -1.0}, 2.5}};
 
     // ---- Border
-    static constexpr float spacing = 4.0;
-    static constexpr double radius = 4.0;
+    static constexpr float spacing = 5.0;
+    static constexpr double radius = 5.0;
 
     // Top and bottom edges
     for (float x = X_MIN; x <= X_MAX; x += spacing) {
