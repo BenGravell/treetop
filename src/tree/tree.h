@@ -23,6 +23,7 @@ const double PI = nanoflann::pi_const<double>();
 #include "core/trajectory.h"
 #include "core/util.h"
 #include "tree/node.h"
+#include "tree/thread_pool.h"
 #include "tree/sampling.h"
 #include "tree/steer.h"
 
@@ -235,7 +236,7 @@ struct Tree {
         }
     }
 
-    void growSingleNode(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const KDTree& zap_kdtree, const SamplingSettings& sampling_settings) {
+    NodePtr growSingleNode(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const KDTree& zap_kdtree, const SamplingSettings& sampling_settings) {
         // Sample a new state.
         StateAndReason state_and_reason = sample(goal, warm_traj, time_ix, sampling_settings);
         StateVector state = state_and_reason.state;
@@ -246,12 +247,12 @@ struct Tree {
 
         // Could not find a parent.
         if (parent == nullptr) {
-            return;
+            return nullptr;
         }
 
         // Sampled state is in collision.
         if (obstaclesCollidesWith(obstacles, state)) {
-            return;
+            return nullptr;
         }
 
         // Steer from parent to child.
@@ -268,17 +269,21 @@ struct Tree {
 
         // Trajectory is in collision.
         if (obstaclesCollidesWith(obstacles, traj)) {
-            return;
+            return nullptr;
         }
 
-        // Create node from sampled state and add to the tree.
+        // Create node from sampled state.
         const bool near_goal = checkTargetHit(state, goal, false);
         const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, near_goal};
-        const NodePtr node_ptr = std::make_shared<Node>(node);
-        addNode(node_ptr, time_ix);
+        return std::make_shared<Node>(node);
     }
 
-    void growSingleLayer(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_layer, const SamplingSettings& sampling_settings) {
+    void growSingleLayer(const StateVector& goal,
+                         const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj,
+                         int time_ix,
+                         int num_node_attempts_per_layer,
+                         const SamplingSettings& sampling_settings,
+                         ThreadPool& pool) {
         // Build the zero-action-point cloud.
         StateCloud zap_cloud;
         const Nodes& prev_nodes = layers[time_ix - 1];
@@ -294,16 +299,51 @@ struct Tree {
         KDTree zap_kdtree(4, zap_cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
         zap_kdtree.buildIndex();
 
-        // Grow.
-        for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_layer; ++node_attempt_ix) {
-            growSingleNode(goal, warm_traj, time_ix, zap_kdtree, sampling_settings);
+        // Partition work into batches
+        static constexpr int batch_size = 200;
+        const int num_batches = num_node_attempts_per_layer / batch_size;
+        std::vector<std::future<std::vector<NodePtr>>> futures;
+        futures.reserve(num_batches);
+
+        for (int b = 0; b < num_batches; ++b) {
+            futures.push_back(pool.enqueue([&, b]() {
+                std::vector<NodePtr> local_nodes;
+                local_nodes.reserve(batch_size);
+
+                const int start = b * batch_size;
+                const int end = std::min(start + batch_size, num_node_attempts_per_layer);
+
+                for (int i = start; i < end; ++i) {
+                    NodePtr node = growSingleNode(goal, warm_traj, time_ix, zap_kdtree, sampling_settings);
+                    if (node) {
+                        local_nodes.push_back(std::move(node));
+                    }
+                }
+
+                return local_nodes;
+            }));
+        }
+
+        // Merge results
+        auto& layer_nodes = layers[time_ix];
+        for (auto& fut : futures) {
+            std::vector<NodePtr> local_nodes = fut.get();
+            layer_nodes.insert(layer_nodes.end(),
+                               std::make_move_iterator(local_nodes.begin()),
+                               std::make_move_iterator(local_nodes.end()));
         }
     }
 
-    void growLayers(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_node_attempts, const SamplingSettings& sampling_settings) {
+    void growLayers(const StateVector& goal,
+                    const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj,
+                    int num_node_attempts,
+                    const SamplingSettings& sampling_settings) {
+        const int num_threads = std::thread::hardware_concurrency();
+        ThreadPool pool(num_threads);
         const int num_node_attempts_per_layer = num_node_attempts / (TIME_IX_MAX + 1);
+
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            growSingleLayer(goal, warm_traj, time_ix, num_node_attempts_per_layer, sampling_settings);
+            growSingleLayer(goal, warm_traj, time_ix, num_node_attempts_per_layer, sampling_settings, pool);
         }
     }
 
