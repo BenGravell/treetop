@@ -107,9 +107,9 @@ int main() {
     Rectangle use_action_jitter_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
 
     // Column 3
-    Rectangle use_warm_start_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_cold_start_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_goal_sampling_button = {button_x3, button_margin + 3 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_warm_start_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_cold_start_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_goal_sampling_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     // Column 4
     Rectangle show_tree_button = {button_x4, button_margin + 0 * (button_height + button_margin), button_width, button_height};
