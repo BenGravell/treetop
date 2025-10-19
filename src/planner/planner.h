@@ -32,12 +32,12 @@ struct TrajOptOutputs {
 };
 
 struct Planner {
-    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const SamplingSettings& sampling_settings) {
+    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const SamplingSettings& sampling_settings) {
         const float clock_start = GetTime();
 
         Tree tree;
         std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = warm ? std::optional(warm->traj) : std::nullopt;
-        tree.grow(start, goal, num_node_attempts, warm_traj, sampling_settings);
+        tree.grow(start, goal, num_node_attempts, warm_traj, use_hot, sampling_settings);
 
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
@@ -119,8 +119,8 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
-        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, sampling_settings);
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
+        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, use_hot, sampling_settings);
 
         const std::vector<Path>& path_candidates = tree.getPathCandidates();
 

@@ -93,29 +93,34 @@ int main() {
     static const int button_width = 300;
     static const int button_height = 50;
     static const int button_margin = 10;
-    static const int button_x1 = SCREEN_WIDTH - 3 * (button_width + button_margin);
-    static const int button_x2 = SCREEN_WIDTH - 2 * (button_width + button_margin);
-    static const int button_x3 = SCREEN_WIDTH - 1 * (button_width + button_margin);
+    static const int button_x1 = SCREEN_WIDTH - 4 * (button_width + button_margin);
+    static const int button_x2 = SCREEN_WIDTH - 3 * (button_width + button_margin);
+    static const int button_x3 = SCREEN_WIDTH - 2 * (button_width + button_margin);
+    static const int button_x4 = SCREEN_WIDTH - 1 * (button_width + button_margin);
 
     // Column 1
     Rectangle pause_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
     Rectangle advance_button = {button_x1, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     // Column 2
-    Rectangle use_action_jitter_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_warm_start_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_cold_start_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_goal_sampling_button = {button_x2, button_margin + 3 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_hot_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_action_jitter_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
 
     // Column 3
-    Rectangle show_tree_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_pre_opt_traj_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_post_opt_traj_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_warm_start_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_cold_start_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_goal_sampling_button = {button_x3, button_margin + 3 * (button_height + button_margin), button_width, button_height};
+
+    // Column 4
+    Rectangle show_tree_button = {button_x4, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_pre_opt_traj_button = {button_x4, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_post_opt_traj_button = {button_x4, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y + (float)(Y_MIN * SCALE_SS), X_SIZE * SCALE_SS, Y_SIZE * SCALE_SS};
 
     // Toggle-able states
     bool paused = false;
+    bool use_hot = true;
     bool use_action_jitter = false;
     bool use_warm = true;
     bool use_cold = true;
@@ -138,7 +143,7 @@ int main() {
     // Initial plan
     PlannerOutputs planner_outputs;
     std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt;
-    planner_outputs = Planner::plan(start, goal, warm, use_action_jitter, sampling_settings);
+    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings);
 
     float last_time = GetTime();
 
@@ -153,22 +158,31 @@ int main() {
         // check button hitboxes
         const bool mouse_in_pause_button = CheckCollisionPointRec(mouse_point, pause_button);
         const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
+        const bool mouse_in_use_hot_button = CheckCollisionPointRec(mouse_point, use_hot_button);
+        const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
         const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
         const bool mouse_in_use_cold_start_button = CheckCollisionPointRec(mouse_point, use_cold_start_button);
         const bool mouse_in_use_goal_sampling_button = CheckCollisionPointRec(mouse_point, use_goal_sampling_button);
-        const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
 
         const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
         const bool mouse_in_show_pre_opt_traj_button = CheckCollisionPointRec(mouse_point, show_pre_opt_traj_button);
         const bool mouse_in_show_post_opt_traj_button = CheckCollisionPointRec(mouse_point, show_post_opt_traj_button);
 
         // check if mouse is in any button
-        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_use_goal_sampling_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
+        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_hot_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_use_goal_sampling_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
 
         // update toggle states
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_pause_button) {
             paused = !paused;
         }
+
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_hot_button) {
+            use_hot = !use_hot;
+        }
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
+            use_action_jitter = !use_action_jitter;
+        }
+
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_warm_start_button) {
             use_warm = !use_warm;
         }
@@ -177,9 +191,6 @@ int main() {
         }
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_goal_sampling_button) {
             use_goal = !use_goal;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
-            use_action_jitter = !use_action_jitter;
         }
 
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_tree_button) {
@@ -225,7 +236,7 @@ int main() {
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
             warm = std::make_optional(planner_outputs.solution);
-            planner_outputs = Planner::plan(start, goal, warm, use_action_jitter, sampling_settings);
+            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings);
         }
 
         // Draw everything
@@ -280,7 +291,7 @@ int main() {
 
         if (paused) {
             // Show pause overlay
-            DrawText("Paused", (SCREEN_WIDTH / 2) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, COLOR_STAT);
+            DrawText("Paused", (0.4 * SCREEN_WIDTH) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, GOLD);
         }
 
         // Draw pause button
@@ -290,6 +301,14 @@ int main() {
         // Draw advance button
         DrawRectangleRec(advance_button, COLOR_BUTTON_BACKGROUND);
         DrawText("Advance", advance_button.x + 10, advance_button.y + 15, 20, COLOR_BUTTON_TEXT);
+
+        // Draw use-hot button
+        DrawRectangleRec(use_hot_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_hot ? "Disable hot start" : "Enable hot start", use_hot_button.x + 10, use_hot_button.y + 15, 20, COLOR_BUTTON_TEXT);
+
+        // Draw use-action-jitter button
+        DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-warm-start button
         DrawRectangleRec(use_warm_start_button, COLOR_BUTTON_BACKGROUND);
@@ -302,10 +321,6 @@ int main() {
         // Draw use-goal-sampling button
         DrawRectangleRec(use_goal_sampling_button, COLOR_BUTTON_BACKGROUND);
         DrawText(use_goal ? "Disable goal sampling" : "Enable goal sampling", use_goal_sampling_button.x + 10, use_goal_sampling_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-action-jitter button
-        DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw show-tree button
         DrawRectangleRec(show_tree_button, COLOR_BUTTON_BACKGROUND);

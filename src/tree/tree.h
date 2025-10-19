@@ -359,7 +359,7 @@ struct Tree {
         }
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const SamplingSettings& sampling_settings) {
+    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const bool use_hot, const SamplingSettings& sampling_settings) {
         // Add root node.
         growRootNode(start, goal);
 
@@ -374,8 +374,8 @@ struct Tree {
             warm_traj = new_warm_traj;
         }
 
-        if (warm_traj) {
-            // Add warm-start nodes.
+        if (warm_traj && use_hot) {
+            // Add warm-start nodes, i.e. hot-start the tree.
             growWarm(warm_traj.value(), goal);
         }
 
