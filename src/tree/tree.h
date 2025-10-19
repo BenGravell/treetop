@@ -143,7 +143,11 @@ struct Tree {
         // Query point from KDTree index.
 
         // Distance from [zero-action-point of start] to [target]
-        // This is a good proxy for softLoss since acceleration is proportional to
+
+        // NOTE: This treats distance in (x, y, yaw, velocity) all equally (isotropic)
+        // With the choice of units and scenarios used here, this is a decent choice empirically (even if it is not very principled)
+
+        // XY distance is a good proxy for softLoss since acceleration is proportional to
         // distance(zap(start), target) under simplifying kinematic assumptions e.g. @ high speed.
 
         // TODO calibrate this heuristic using data from steering function and many start-goal pairs.
@@ -154,6 +158,8 @@ struct Tree {
         nanoflann::KNNResultSet<double> resultSet(1);
         resultSet.init(&ret_index, &out_dist_sqr);
         zap_kdtree.findNeighbors(resultSet, target.data());
+        // NOTE: zap_kdtree is the tree made from zero-action-points of (forward-propagation from) layers[target_time_ix - 1],
+        // so layers[target_time_ix - 1][ret_index] is the corresponding node which is the parent of the zero-action-point at ret_index.
         return layers[target_time_ix - 1][ret_index];
     }
 

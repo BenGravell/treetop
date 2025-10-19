@@ -134,7 +134,7 @@ mkdir -p external
 git clone --depth 1 https://gitlab.com/libeigen/eigen.git external/eigen
 ```
 
-First time setup - add conan profile from conan_profile_emscripten TODO
+First time setup - add conan profile from [`conan_profile_emscripten`](conan_profile_emscripten)
 
 Every time
 
