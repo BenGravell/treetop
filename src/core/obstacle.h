@@ -17,8 +17,8 @@ inline double distance(const Vector2& position, const StateVector& state) {
 }
 
 struct Obstacle {
-    const Vector2 center;
-    const double radius;
+    Vector2 center;
+    double radius;
 
     double clearance(const StateVector& state) const {
         return distance(center, state) - radius;

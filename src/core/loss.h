@@ -17,58 +17,58 @@
 // TODO put in loss config struct
 static constexpr double obstacle_loss_weight = 10.0;
 
-// ---- SCENARIO: Slalom with border
-std::vector<Obstacle> makeSlalomScenario() {
+// ---- SCENARIO: Slalom with parking space and border.
+std::vector<Obstacle> makeScenario() {
+    static constexpr double ob_spacing_factor = 1.3;
+    static constexpr double ob_r = 1.0;
+    static constexpr double gap = 6.0;
+    static constexpr double gap_half = 0.5 * gap;
+    static constexpr double x_mid = X_MIN + 0.5 * (X_MAX - X_MIN);
+
     // ---- Slalom
+    static constexpr double x_offset = 6.0;
     std::vector<Obstacle> obstacles = {
-        {{12.0, 1.0}, 2.5},
-        {{28.0, -1.0}, 2.5}};
+        {{x_mid - x_offset, 1.0 * ob_spacing_factor}, 2 * ob_r},
+        {{x_mid + x_offset, -1.0 * ob_spacing_factor}, 2 * ob_r}};
+
+    // ---- Parking space.
+    std::vector<Obstacle> ps_obstacles = {
+        {{x_mid - gap_half - ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r + ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r + ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid + gap_half + ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid + gap_half + ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+        {{x_mid + gap_half + ob_r, -1 * ob_spacing_factor * ob_r}, ob_r}};
+
+    obstacles.insert(obstacles.end(), ps_obstacles.begin(), ps_obstacles.end());
 
     // ---- Border
+    std::vector<Obstacle> b_obstacles;
     static constexpr float spacing = 5.0;
     static constexpr double radius = 5.0;
 
     // Top and bottom edges
     for (float x = X_MIN; x <= X_MAX; x += spacing) {
-        obstacles.push_back({{x, (float)Y_MAX + (float)radius}, radius});  // top
-        obstacles.push_back({{x, (float)Y_MIN - (float)radius}, radius});  // bottom
+        b_obstacles.push_back({{x, (float)Y_MAX + (float)radius}, radius});
+        b_obstacles.push_back({{x, (float)Y_MIN - (float)radius}, radius});
     }
 
     // Left and right edges
     for (float y = Y_MIN; y <= Y_MAX; y += spacing) {
-        obstacles.push_back({{(float)X_MIN - (float)radius, y}, radius});  // left
-        obstacles.push_back({{(float)X_MAX + (float)radius, y}, radius});  // right
+        b_obstacles.push_back({{(float)X_MIN - (float)radius, y}, radius});
+        b_obstacles.push_back({{(float)X_MAX + (float)radius, y}, radius});
     }
+
+    obstacles.insert(obstacles.end(), b_obstacles.begin(), b_obstacles.end());
 
     return obstacles;
 }
 
-// ---- SCENARIO: Slalom.
-std::vector<Obstacle> obstacles = makeSlalomScenario();
-
-// // ---- SCENARIO: Bubbles.
-// std::vector<Obstacle> obstacles = {
-//     {{14.0, 0.0}, 3.0},
-//     {{20.0, 1.0}, 2.0},
-//     {{28.0, 2.0}, 2.4},
-//     {{32.0, -2.0}, 2.4}};
-
-// // ---- SCENARIO: Parking space.
-// static constexpr double gap = 6.0;
-// static constexpr double gap_half = 0.5 * gap;
-// static constexpr double ob_r = 1.0;
-// static constexpr double ob_spacing_factor = 1.3;
-// std::vector<Obstacle> obstacles = {
-//     {{20.0 - gap_half - ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 + gap_half + ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 + gap_half + ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
-//     {{20.0 + gap_half + ob_r, -1 * ob_spacing_factor * ob_r}, ob_r}};
+std::vector<Obstacle> obstacles = makeScenario();
 
 // Amount of clearance distance before loss starts kicking in.
 // clearance > clearance_free  ->      loss = 0
