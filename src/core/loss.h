@@ -14,9 +14,6 @@
 #include "core/trajectory.h"
 #include "core/util.h"
 
-// TODO put in loss config struct
-static constexpr double obstacle_loss_weight = 10.0;
-
 // ---- SCENARIO: Slalom with parking space and border.
 std::vector<Obstacle> makeScenario() {
     static constexpr double ob_spacing_factor = 1.3;
@@ -70,12 +67,6 @@ std::vector<Obstacle> makeScenario() {
 
 std::vector<Obstacle> obstacles = makeScenario();
 
-// Amount of clearance distance before loss starts kicking in.
-// clearance > clearance_free  ->      loss = 0
-// clearance < clearance_free  ->  0 < loss < 1
-// clearance = 0               ->      loss = 1
-static constexpr double clearance_free = 0.05;
-
 struct VehicleLimits {
     const double speed_max;
     const double speed_min;
@@ -114,6 +105,17 @@ struct TerminalStateParams {
     const double speed_tol;
 };
 
+struct ObstacleAvoidanceParams {
+    // Weight of obstacle loss
+    const double weight;
+
+    // Amount of clearance distance before loss starts kicking in.
+    // clearance > clearance_free  ->      loss = 0
+    // clearance < clearance_free  ->  0 < loss < 1
+    // clearance = 0               ->      loss = 1
+    const double clearance_free;
+};
+
 // Struct representing a linear-quadratic state value (V) function.
 struct StateValueV {
     StateVector x;
@@ -132,22 +134,21 @@ struct StateActionValueQ {
 // TODO move this somewhere better
 inline double clearanceLoss(const double c, const double c_free) {
     const double p = c_free - c;
-    return p <= 0.0 ? 0.0 : quart(p) / quart(c_free);
+    return (p <= 0.0) ? 0.0 : quart(p) / quart(c_free);
 }
 
 inline double clearanceLossGrad(const double c, const double c_free) {
     const double p = c_free - c;
-    return p <= 0.0 ? 0.0 : -4 * (cube(p) / quart(c_free));
+    return (p <= 0.0) ? 0.0 : -4 * (cube(p) / quart(c_free));
 }
 
 inline double clearanceLossHess(const double c, const double c_free) {
     const double p = c_free - c;
-    return p <= 0.0 ? 0.0 : 12 * (square(p) / quart(c_free));
+    return (p <= 0.0) ? 0.0 : 12 * (square(p) / quart(c_free));
 }
 
-inline double obstacleLoss(const Obstacle& obstacle, const StateVector& state) {
-    const double clearance = obstacle.clearance(state);
-    return obstacle_loss_weight * clearanceLoss(clearance, clearance_free);
+inline double obstacleLoss(const Obstacle& obstacle, const StateVector& state, const double clearance_free) {
+    return clearanceLoss(obstacle.clearance(state), clearance_free);
 }
 
 struct GradAndHess2d {
@@ -155,7 +156,7 @@ struct GradAndHess2d {
     const Eigen::Matrix2d hess;
 };
 
-inline GradAndHess2d obstacleLossGradAndHess(const Obstacle& obstacle, const StateVector& state) {
+inline GradAndHess2d obstacleLossGradAndHess(const Obstacle& obstacle, const StateVector& state, const double clearance_free) {
     Eigen::Vector2d grad = Eigen::Vector2d::Zero();
     Eigen::Matrix2d hess = Eigen::Matrix2d::Zero();
 
@@ -163,32 +164,33 @@ inline GradAndHess2d obstacleLossGradAndHess(const Obstacle& obstacle, const Sta
     double distance = offset.norm();
     const double clearance = distance - obstacle.radius;
     if (clearance < clearance_free) {
-        // Clamp distance to avoid division by zero
-        distance = std::max(distance, 1e-3);
+        // Clamp distance to avoid division by zero.
+        static constexpr double distance_min_denominator = 1e-3;
+        distance = std::max(distance, distance_min_denominator);
 
         const Eigen::Vector2d offset_normalized = offset / distance;
         const double cg = clearanceLossGrad(clearance, clearance_free);
         const double ch = clearanceLossHess(clearance, clearance_free);
         const double cg_over_d = cg / distance;
-        grad = (obstacle_loss_weight * cg) * offset_normalized;
-        hess = obstacle_loss_weight * ((ch - cg_over_d) * (offset_normalized * offset_normalized.transpose()) + cg_over_d * Eigen::Matrix2d::Identity());
+        grad = cg * offset_normalized;
+        hess = (ch - cg_over_d) * (offset_normalized * offset_normalized.transpose()) + cg_over_d * Eigen::Matrix2d::Identity();
     }
     return {grad, hess};
 }
 
-inline double multiObstacleLoss(const std::vector<Obstacle>& obstacles, const StateVector& state) {
+inline double multiObstacleLoss(const std::vector<Obstacle>& obstacles, const StateVector& state, const double clearance_free) {
     double loss = 0.0;
     for (const Obstacle& obstacle : obstacles) {
-        loss += obstacleLoss(obstacle, state);
+        loss += obstacleLoss(obstacle, state, clearance_free);
     }
     return loss;
 }
 
-inline GradAndHess2d multiObstacleLossGradAndHess(const std::vector<Obstacle>& obstacles, const StateVector& state) {
+inline GradAndHess2d multiObstacleLossGradAndHess(const std::vector<Obstacle>& obstacles, const StateVector& state, const double clearance_free) {
     Eigen::Vector2d grad = Eigen::Vector2d::Zero();
     Eigen::Matrix2d hess = Eigen::Matrix2d::Zero();
     for (const Obstacle& obstacle : obstacles) {
-        const auto gradAndHessThisObs = obstacleLossGradAndHess(obstacle, state);
+        const GradAndHess2d gradAndHessThisObs = obstacleLossGradAndHess(obstacle, state, clearance_free);
         grad += gradAndHessThisObs.grad;
         hess += gradAndHessThisObs.hess;
     }
@@ -197,10 +199,12 @@ inline GradAndHess2d multiObstacleLossGradAndHess(const std::vector<Obstacle>& o
 
 struct Loss {
     // ---- Attributes
+
     SoftParams soft_params;
     VehicleLimits vehicle_limits;
     VehicleLimitsParams vehicle_limits_params;
     TerminalStateParams terminal_state_params;
+    ObstacleAvoidanceParams obs_avoid_params;
     StateVector terminal_state_target;
     // Scale all non-terminal loss terms by inverse of trajectory length
     // to make terminal loss terms less sensitive to trajectory length.
@@ -229,7 +233,7 @@ struct Loss {
         const double hard_loss = hard_speed_loss + hard_accel_lon_loss + hard_accel_lat_loss + hard_curvature_loss;
 
         // Obstacles
-        const double obstacle_loss = multiObstacleLoss(obstacles, state);
+        const double obstacle_loss = obs_avoid_params.weight * multiObstacleLoss(obstacles, state, obs_avoid_params.clearance_free);
 
         return inverse_traj_length * (soft_loss + hard_loss + obstacle_loss);
     }
@@ -248,9 +252,9 @@ struct Loss {
         const double curvature2 = curvature * curvature;
 
         // ---- Obstacle loss
-        const GradAndHess2d obstacle_grad_and_hess = multiObstacleLossGradAndHess(obstacles, state);
-        const auto obstacle_grad = obstacle_grad_and_hess.grad;
-        const auto obstacle_hess = obstacle_grad_and_hess.hess;
+        const GradAndHess2d obstacle_grad_and_hess = multiObstacleLossGradAndHess(obstacles, state, obs_avoid_params.clearance_free);
+        const Eigen::Vector2d obstacle_grad = obs_avoid_params.weight * obstacle_grad_and_hess.grad;
+        const Eigen::Matrix2d obstacle_hess = obs_avoid_params.weight * obstacle_grad_and_hess.hess;
 
         // ---- Gradient
         // Compute components

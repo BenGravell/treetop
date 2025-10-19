@@ -16,9 +16,9 @@ struct Problem {
     double total_time;
 };
 
-// Make a problem.
 inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time) {
-    // Define the loss function.
+    // ---- Define the loss function.
+
     const double inverse_traj_length = DT / total_time;
 
     // Soft terms
@@ -29,18 +29,19 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     static constexpr double accel_lon_tol = 0.5;
     static constexpr double accel_lat_tol = 0.5;
     static constexpr double curvature_tol = 0.05;
-    const SoftParams soft_params{accel_lon_scale,
-                                 accel_lat_scale,
-                                 curvature_scale,
-                                 accel_lon_tol,
-                                 accel_lat_tol,
-                                 curvature_tol};
+    static constexpr SoftParams soft_params{accel_lon_scale,
+                                            accel_lat_scale,
+                                            curvature_scale,
+                                            accel_lon_tol,
+                                            accel_lat_tol,
+                                            curvature_tol};
 
-    const VehicleLimits vehicle_limits{V_MAX,
-                                       V_MIN,
-                                       ACCEL_LON_MAX,
-                                       ACCEL_LAT_MAX,
-                                       CURVATURE_MAX};
+    // Hard terms
+    static constexpr VehicleLimits vehicle_limits{V_MAX,
+                                                  V_MIN,
+                                                  ACCEL_LON_MAX,
+                                                  ACCEL_LAT_MAX,
+                                                  CURVATURE_MAX};
 
     static constexpr double speed_lim_scale = 0.01;
     static constexpr double accel_lon_max_scale = 0.01;
@@ -53,17 +54,17 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     static constexpr double accel_lat_free = 0.99 * ACCEL_LAT_MAX;
     static constexpr double curvature_free = 0.99 * CURVATURE_MAX;
 
-    const VehicleLimitsParams vehicle_limits_params{speed_lim_scale,
-                                                    speed_free_pos,
-                                                    speed_free_neg,
-                                                    accel_lon_max_scale,
-                                                    accel_lon_free,
-                                                    accel_lat_max_scale,
-                                                    accel_lat_free,
-                                                    curvature_max_scale,
-                                                    curvature_free};
+    static constexpr VehicleLimitsParams vehicle_limits_params{speed_lim_scale,
+                                                               speed_free_pos,
+                                                               speed_free_neg,
+                                                               accel_lon_max_scale,
+                                                               accel_lon_free,
+                                                               accel_lat_max_scale,
+                                                               accel_lat_free,
+                                                               curvature_max_scale,
+                                                               curvature_free};
 
-    // Terminal state
+    // Terminal state terms
     static constexpr double terminal_xy_scale = 1.0;        // 1 m per m
     static constexpr double terminal_xy_tol = 0.01;         // 1 cm
     static constexpr double terminal_yaw_scale = 5.0 / PI;  // 5 m per 180 deg
@@ -71,16 +72,19 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     static constexpr double terminal_speed_scale = 0.5;     // 1 m per 0.5 m/s
     static constexpr double terminal_speed_tol = 0.01;      // 1 cm/s
 
-    const TerminalStateParams terminal_state_params{terminal_xy_scale,
-                                                    terminal_xy_tol,
-                                                    terminal_yaw_scale,
-                                                    terminal_yaw_tol,
-                                                    terminal_speed_scale,
-                                                    terminal_speed_tol};
+    static constexpr TerminalStateParams terminal_state_params{terminal_xy_scale,
+                                                               terminal_xy_tol,
+                                                               terminal_yaw_scale,
+                                                               terminal_yaw_tol,
+                                                               terminal_speed_scale,
+                                                               terminal_speed_tol};
 
-    // Instantiate the loss.
-    const Loss loss{soft_params, vehicle_limits, vehicle_limits_params, terminal_state_params, terminal_state_target, inverse_traj_length};
+    // Obstacle terms
+    static constexpr double obstacle_loss_weight = 10.0;
+    static constexpr double clearance_free = 0.05;
+    static constexpr ObstacleAvoidanceParams obs_avoid_params{obstacle_loss_weight, clearance_free};
 
-    // Return the constructed optimal control problem.
+    const Loss loss{soft_params, vehicle_limits, vehicle_limits_params, terminal_state_params, obs_avoid_params, terminal_state_target, inverse_traj_length};
+
     return Problem{loss, initial_state, total_time};
 }
