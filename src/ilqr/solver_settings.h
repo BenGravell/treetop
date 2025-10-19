@@ -15,7 +15,7 @@
     } while (0)
 
 struct SolverSettings {
-    const uint64_t max_iters{500};
+    const uint64_t max_iters{200};
     const double cost_change_tolerance{1e-6};
     const double cost_change_ratio_min{0.01};
     const double regularization_init{1.0};

@@ -30,7 +30,7 @@ const double PI = nanoflann::pi_const<double>();
 
 // Trajectory optimization time is linearly proportional to this number.
 // Good results if chosen in proportion to NUM_NODE_ATTEMPTS in planner.h
-static constexpr int num_path_candidates = 2;
+static constexpr int num_path_candidates = 3;
 
 // Number of steering segments in a trajectory optimization trajectory.
 // Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
