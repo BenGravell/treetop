@@ -8,7 +8,7 @@
 #include "ilqr/solver_settings.h"
 #include "tree/tree.h"
 
-static constexpr int NUM_NODE_ATTEMPTS = 20000;
+static constexpr int NUM_NODE_ATTEMPTS = 40000;
 
 struct TimingInfo {
     int tree_exp;  // ms
