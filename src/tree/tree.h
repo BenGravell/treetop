@@ -272,7 +272,7 @@ struct Tree {
         addNode(node_ptr, time_ix);
     }
 
-    void growSingleStage(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_stage, const SamplingSettings& sampling_settings) {
+    void growSingleLayer(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_layer, const SamplingSettings& sampling_settings) {
         // Build the zero-action-point cloud.
         StateCloud zap_cloud;
         const Nodes& prev_nodes = layers[time_ix - 1];
@@ -289,15 +289,15 @@ struct Tree {
         zap_kdtree.buildIndex();
 
         // Grow.
-        for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
+        for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_layer; ++node_attempt_ix) {
             growSingleNode(goal, warm_traj, time_ix, zap_kdtree, sampling_settings);
         }
     }
 
-    void growStages(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_node_attempts, const SamplingSettings& sampling_settings) {
-        const int num_node_attempts_per_stage = num_node_attempts / (TIME_IX_MAX + 1);
+    void growLayers(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_node_attempts, const SamplingSettings& sampling_settings) {
+        const int num_node_attempts_per_layer = num_node_attempts / (TIME_IX_MAX + 1);
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            growSingleStage(goal, warm_traj, time_ix, num_node_attempts_per_stage, sampling_settings);
+            growSingleLayer(goal, warm_traj, time_ix, num_node_attempts_per_layer, sampling_settings);
         }
     }
 
@@ -379,10 +379,10 @@ struct Tree {
             growWarm(warm_traj.value(), goal);
         }
 
-        // Skip sampling if settings are all disabled
+        // Skip sampling if settings are all disabled.
         if ((sampling_settings.use_cold || sampling_settings.use_warm || sampling_settings.use_goal)) {
-            // Add samples for all stages.
-            growStages(goal, warm_traj, num_node_attempts, sampling_settings);
+            // Add samples for all layers.
+            growLayers(goal, warm_traj, num_node_attempts, sampling_settings);
         }
 
         // Add goal nodes.

@@ -8,10 +8,10 @@
 
 // Length of trajectory for steering function, i.e. for one node.
 // NOTE: Need to choose a reasonable middle ground.
-// 1. Larger TRAJ_LENGTH_STEER -> more reliance on steering function, more nodes per stage.
+// 1. Larger TRAJ_LENGTH_STEER -> more reliance on steering function, more nodes per layer.
 //    - Typically helps the tree explore state space faster, more coverage.
 //    - May miss manuevers involving cusps / direction change.
-// 2. Smaller TRAJ_LENGTH_STEER -> less reliance on steering function, less nodes per stage.
+// 2. Smaller TRAJ_LENGTH_STEER -> less reliance on steering function, less nodes per layer.
 //    - Typically makes the tree explore state space slower, less coverage.
 //    - Much faster and reliable at finding maneuvers involving cusps / direction change.
 static constexpr uint64_t TRAJ_LENGTH_STEER = 5;
