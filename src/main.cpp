@@ -240,8 +240,8 @@ int main() {
         }
 
         // Draw everything
-        BeginDrawing();
         const float draw_elm_clock_start = GetTime();
+        BeginDrawing();
         ClearBackground(COLOR_BACKGROUND);
 
         // Draw the search space
@@ -404,10 +404,10 @@ int main() {
             DrawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
             DrawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw", mono_font);
         }
-
+        
+        EndDrawing();
         const float draw_elm_clock_stop = GetTime();
         draw_elm_clock_time_next = static_cast<int>(std::ceil(1e6 * (draw_elm_clock_stop - draw_elm_clock_start)));
-        EndDrawing();
     }
 
     // Teardown
