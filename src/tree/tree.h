@@ -41,13 +41,15 @@ static constexpr int NUM_STEER_SEGMENTS = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
 static constexpr int TIME_IX_GOAL = NUM_STEER_SEGMENTS;
 static constexpr int TIME_IX_MAX = TIME_IX_GOAL - 1;
 
+using Path = std::array<NodePtr, NUM_STEER_SEGMENTS>;
+
 // Time-averaged acceleration magnitude.
-// This is what Loss.totalValue() would be in the absence of obstacle avoidance and smoothness considerations.
+// This is what Loss.totalValue() would be in the absence of constraint satisfaction penalties.
 // TODO move this to Loss as a special method.
 template <int N>
 inline double softLoss(const Trajectory<N>& traj) {
     double cost = 0.0;
-    for (int i = 0; i < traj.length; ++i) {
+    for (int i = 0; i < N; ++i) {
         const StateVector& state = traj.stateAt(i);
         const ActionVector& action = traj.actionAt(i);
         const double lon_accel = action(0);
@@ -58,23 +60,23 @@ inline double softLoss(const Trajectory<N>& traj) {
     return cost / N;
 }
 
+using SteerTraj = Trajectory<TRAJ_LENGTH_STEER>;
+
 struct SteerOutputs {
-    Trajectory<TRAJ_LENGTH_STEER> traj;
+    SteerTraj traj;
     double cost;
 };
 
 inline SteerOutputs steer(const StateVector& start, const StateVector& goal) {
     const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, TRAJ_DURATION_STEER);
 
-    Trajectory<TRAJ_LENGTH_STEER> traj;
+    SteerTraj traj;
     rolloutOpenLoopConstrained(action_sequence, start, traj);
 
     const double cost = softLoss(traj);
 
     return {traj, cost};
 }
-
-using Path = std::array<NodePtr, NUM_STEER_SEGMENTS>;
 
 inline bool checkTargetHit(const StateVector& state, const StateVector& target, const bool relax = false) {
     const StateVector delta = state - target;
@@ -188,7 +190,7 @@ struct Tree {
         NodePtr parent = getRootNode();
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
             const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER));
-            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
             const bool near_goal = checkTargetHit(state, goal, false);
@@ -206,7 +208,7 @@ struct Tree {
             // Infer the indices into the whole warm_traj for the current sub-node.
             const int ix_offset = (time_ix - 1) * TRAJ_LENGTH_STEER;
             // Form the sub-node.
-            Trajectory<TRAJ_LENGTH_STEER> traj;
+            SteerTraj traj;
             for (int stage_ix = 0; stage_ix <= TRAJ_LENGTH_STEER; ++stage_ix) {
                 const int ix_in_warm_traj = ix_offset + stage_ix;
                 traj.setStateAt(stage_ix, warm_traj.stateAt(ix_in_warm_traj));
@@ -260,7 +262,7 @@ struct Tree {
         // NOTE: Using projection tends to produce bang-bang trajectories.
         // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
         const SteerOutputs steer_outputs = steer(parent->state, state);
-        const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+        const SteerTraj& traj = steer_outputs.traj;
         const double cost = steer_outputs.cost;
 
         // Reset state sample as the terminal state in the trajectory.
@@ -312,7 +314,7 @@ struct Tree {
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
-            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const SteerTraj& traj = steer_outputs.traj;
             const StateVector& state = traj.stateTerminal();
             const double cost = steer_outputs.cost;
 
@@ -353,7 +355,7 @@ struct Tree {
             // Steer from node to goal.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
 
-            const Trajectory<TRAJ_LENGTH_STEER>& traj = steer_outputs.traj;
+            const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
 
