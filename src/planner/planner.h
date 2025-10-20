@@ -28,21 +28,14 @@ struct TrajOptOutputs {
     Solution<TRAJ_LENGTH_OPT> solution;
     Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
     double cost_pre_opt;
-    int clock_time;
 };
 
 struct Planner {
-    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const SamplingSettings& sampling_settings) {
-        const float clock_start = GetTime();
-
+    static Tree expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const SamplingSettings& sampling_settings) {
         Tree tree;
         std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = warm ? std::optional(warm->traj) : std::nullopt;
         tree.grow(start, goal, num_node_attempts, warm_traj, use_hot, sampling_settings);
-
-        const float clock_stop = GetTime();
-        const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
-
-        return {tree, clock_time};
+        return tree;
     }
 
     static ActionSequence<TRAJ_LENGTH_OPT> convertPathToActionSequence(const Path& path) {
@@ -62,8 +55,6 @@ struct Planner {
     }
 
     static TrajOptOutputs optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
-        const float clock_start = GetTime();
-
         // Define the optimal control problem.
         const Problem problem = makeProblem(start, goal, TRAJ_DURATION_OPT);
 
@@ -90,10 +81,7 @@ struct Planner {
         // Assign the cost using arbitrary loss.
         solution.cost = softLoss(solution.traj);
 
-        const float clock_stop = GetTime();
-        const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
-
-        return {solution, traj_pre_opt, cost_pre_opt, clock_time};
+        return {solution, traj_pre_opt, cost_pre_opt};
     }
 
     template <int N>
@@ -120,10 +108,17 @@ struct Planner {
     }
 
     static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
-        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, use_hot, sampling_settings);
+        // ---- Tree expansion
+        const float tree_exp_clock_start = GetTime();
+        const Tree tree = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, use_hot, sampling_settings);
+        const float tree_exp_clock_stop = GetTime();
+        const int tree_exp_clock_time = static_cast<int>(std::ceil(1e6 * (tree_exp_clock_stop - tree_exp_clock_start)));
 
+        // ---- Path extraction
         const std::vector<Path>& path_candidates = tree.getPathCandidates();
 
+        // ---- Trajectory optimization
+        const float traj_opt_clock_start = GetTime();
         double best_post_opt_cost = std::numeric_limits<double>::infinity();
         TrajOptOutputs best_traj_opt_outputs;
         Path best_path;
@@ -134,8 +129,6 @@ struct Planner {
 
         bool found_best_goal_hit = false;
 
-        int traj_opt_clock_time = 0;
-
         for (const Path& path : path_candidates) {
             auto action_sequence = convertPathToActionSequence(path);
 
@@ -145,7 +138,6 @@ struct Planner {
             }
 
             const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
-            traj_opt_clock_time += traj_opt_outputs.clock_time;
 
             if (traj_opt_outputs.solution.cost < best_post_opt_cost) {
                 best_post_opt_cost = traj_opt_outputs.solution.cost;
@@ -168,6 +160,10 @@ struct Planner {
         const TrajOptOutputs& ret_traj_opt_outputs = found_best_goal_hit ? best_goal_hit_traj_opt_outputs : best_traj_opt_outputs;
         const Path& ret_path = found_best_goal_hit ? best_goal_hit_path : best_path;
 
+        const float traj_opt_clock_stop = GetTime();
+        const int traj_opt_clock_time = static_cast<int>(std::ceil(1e6 * (traj_opt_clock_stop - traj_opt_clock_start)));
+
+        // ---- Return planner outputs.
         return {tree, ret_path, ret_traj_opt_outputs.solution, ret_traj_opt_outputs.traj_pre_opt, ret_traj_opt_outputs.cost_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 };
