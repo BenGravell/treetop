@@ -2,9 +2,11 @@
 
 #include <raylib.h>
 
+#include <algorithm>
+
 #include "app/guppy_r_hq.h"
 
-Color guppyColor(const float x) {
+inline Color guppyColor(const float x) {
     static constexpr int n = guppy_r_hq_colormap.size();
     const int idx = std::clamp(static_cast<int>(x * float(n - 1) + 0.5f), 0, n - 1);
     const auto& rgb = guppy_r_hq_colormap[idx];
@@ -20,6 +22,7 @@ inline Color coolColormap(const float x) {
 }
 
 static constexpr Color COLOR_GRAY_008 = {8, 8, 8, 255};
+static constexpr Color COLOR_GRAY_048 = {48, 48, 48, 255};
 static constexpr Color COLOR_GRAY_064 = {64, 64, 64, 255};
 static constexpr Color COLOR_GRAY_096 = {96, 96, 96, 255};
 static constexpr Color COLOR_GRAY_128 = {128, 128, 128, 255};

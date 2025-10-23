@@ -11,7 +11,7 @@ static constexpr double Y_MAX = 5.0;
 static constexpr double Y_MIN = -Y_MAX;
 static constexpr double Y_SIZE = Y_MAX - Y_MIN;
 
-static constexpr double YAW_MAX = 0.5 * PI;
+static constexpr double YAW_MAX = 0.5 * M_PI;
 static constexpr double YAW_MIN = -YAW_MAX;
 
 inline StateVector clampToSearchSpace(const StateVector& state) {

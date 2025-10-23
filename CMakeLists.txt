@@ -5,9 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Gather source files
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-set(MAIN_FILE ${CMAKE_SOURCE_DIR}/src/main.cpp)
-add_executable(${PROJECT_NAME} ${MAIN_FILE} ${SOURCES})
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # --- Platform-specific configuration ---

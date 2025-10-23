@@ -2,4 +2,4 @@
 
 #include <random>
 
-std::mt19937 rng(std::random_device{}());
+extern std::mt19937 rng;

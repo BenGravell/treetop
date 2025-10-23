@@ -10,7 +10,7 @@
 #include "core/trajectory.h"
 
 // Special function to efficiently compute the end state after using zero action for t seconds.
-StateVector rolloutZeroAction(const StateVector& start, const double t) {
+inline StateVector rolloutZeroAction(const StateVector& start, const double t) {
     const double x = start(0);
     const double y = start(1);
     const double yaw = start(2);

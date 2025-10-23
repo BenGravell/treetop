@@ -1,5 +1,7 @@
 #pragma once
 
+#include <raylib.h>
+
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"

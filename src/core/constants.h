@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 static const double LOG2 = std::log(2.0);
 
 // TODO move to a config struct - VehicleLimits ?

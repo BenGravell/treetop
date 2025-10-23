@@ -3,6 +3,7 @@
 #include <raylib.h>
 
 #include "app/colors.h"
+#include "app/config.h"
 #include "app/transforms.h"
 #include "core/problem.h"
 #include "core/rollout.h"
@@ -25,7 +26,7 @@ void DrawTrajectory(const Trajectory<N>& traj, const float line_width, const Col
     }
 }
 
-void DrawPath(const Path& path, const float line_width, const float node_width) {
+inline void DrawPath(const Path& path, const float line_width, const float node_width) {
     for (const NodePtr& node : path) {
         if (node == nullptr) {
             continue;
@@ -37,7 +38,7 @@ void DrawPath(const Path& path, const float line_width, const float node_width) 
     }
 }
 
-void DrawTree(const Tree& tree) {
+inline void DrawTree(const Tree& tree) {
     // time_ix runs from 0 to NUM_STEER_SEGMENTS + 1, inclusive.
     // NOTE: NUM_STEER_SEGMENTS + 1 == tree.layers.size()
     // NOTE: start node is tree.layers[0].front()
@@ -83,11 +84,11 @@ void DrawTree(const Tree& tree) {
     }
 }
 
-void DrawSquare(const Vector2 center, const float radius, const Color color) {
+inline void DrawSquare(const Vector2 center, const float radius, const Color color) {
     DrawRectangle(center.x - radius, center.y - radius, 2 * radius, 2 * radius, color);
 }
 
-void DrawGoalTriangle(const Vector2 center, const float radius, const Color color) {
+inline void DrawGoalTriangle(const Vector2 center, const float radius, const Color color) {
     Vector2 vertex_left = center;
     vertex_left.x = vertex_left.x - 0.866 * radius;
     vertex_left.y = vertex_left.y + 0.5 * radius;
@@ -102,7 +103,7 @@ void DrawGoalTriangle(const Vector2 center, const float radius, const Color colo
     DrawTriangle(vertex_top, vertex_left, vertex_right, color);
 }
 
-void DrawSeries(std::vector<double> vals, const double val_max, const double dt, const double total_time, const int plot_x, const int plot_y, const int plotWidth, const int plotHeight, const float line_width, const Color color) {
+inline void DrawSeries(std::vector<double> vals, const double val_max, const double dt, const double total_time, const int plot_x, const int plot_y, const int plotWidth, const int plotHeight, const float line_width, const Color color) {
     for (int i = 0; (i + 1) < vals.size(); i++) {
         const float t0 = i * dt;
         const float t1 = (i + 1) * dt;
@@ -129,36 +130,4 @@ struct TimePlotDataValues {
     std::vector<double> pre_opt_traj;
 };
 
-static constexpr int PLOT_WIDTH = 300;
-static constexpr int PLOT_HALF_HEIGHT = 50;
-static constexpr int TIME_PLOT_MARGIN_X = 10;
-static constexpr int TIME_PLOT_MARGIN_Y = 10;
-static constexpr int TIME_PLOT_TITLE_FONT_SIZE = 20;
-static constexpr int TIME_PLOT_TITLE_MARGIN_Y = TIME_PLOT_TITLE_FONT_SIZE + 10;
-
-void DrawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name, const Font font) {
-    const int plot_x = TIME_PLOT_MARGIN_X + ix_plot * (PLOT_WIDTH + TIME_PLOT_MARGIN_X);
-    const int plot_y = SCREEN_HEIGHT - (2 * PLOT_HALF_HEIGHT) - TIME_PLOT_MARGIN_Y;
-
-    // Draw border
-    DrawRectangleLines(plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, COLOR_GRAY_160);
-    DrawRectangleLines(plot_x, plot_y + PLOT_HALF_HEIGHT, PLOT_WIDTH, PLOT_HALF_HEIGHT, COLOR_GRAY_160);
-
-    // Draw title
-    const std::string title = name + " vs Time";
-    DrawTextEx(font, title.c_str(), (Vector2){(float)plot_x, (float)plot_y - TIME_PLOT_TITLE_MARGIN_Y}, TIME_PLOT_TITLE_FONT_SIZE, 1, WHITE);
-
-    // Post-opt traj
-    if (viz_settings.show_post_opt_traj) {
-        static constexpr float line_width = 2.0f;
-        static constexpr Color color = COLOR_TRAJ_POST_OPT;
-        DrawSeries(vals.post_opt_traj, val_max, dt, total_time, plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, line_width, color);
-    }
-
-    // Pre-opt traj
-    if (viz_settings.show_pre_opt_traj) {
-        static constexpr float line_width = 1.0f;
-        static constexpr Color color = COLOR_TRAJ_PRE_OPT;
-        DrawSeries(vals.pre_opt_traj, val_max, dt, total_time, plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, line_width, color);
-    }
-}
+void DrawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name);

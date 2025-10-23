@@ -15,7 +15,7 @@
 #include "core/util.h"
 
 // ---- SCENARIO: Slalom with parking space and border.
-std::vector<Obstacle> makeScenario() {
+inline std::vector<Obstacle> makeScenario() {
     static constexpr double ob_spacing_factor = 1.3;
     static constexpr double ob_r = 1.0;
     static constexpr double gap = 6.0;
@@ -65,7 +65,9 @@ std::vector<Obstacle> makeScenario() {
     return obstacles;
 }
 
-std::vector<Obstacle> obstacles = makeScenario();
+
+extern std::vector<Obstacle> obstacles;
+
 
 struct VehicleLimits {
     const double speed_max;

@@ -1,13 +1,17 @@
 #include <raylib.h>
 #include <raymath.h>
 
+#define RAYGUI_IMPLEMENTATION
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
 #include <unordered_map>
 #include <vector>
 
+#include "raygui.h"
 #include "app/colors.h"
+#include "app/config.h"
 #include "app/drawing.h"
 #include "app/transforms.h"
 #include "core/constants.h"
@@ -19,6 +23,7 @@
 #include "core/util.h"
 #include "ilqr/solver.h"
 #include "planner/planner.h"
+
 #include "tree/tree.h"
 
 template <int N>
@@ -75,6 +80,34 @@ int main() {
 
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "TreeTop");
 
+    // Load a monospaced font
+    Font font = LoadFont("assets/IBMPlexMono-Bold.ttf");
+    SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    GuiSetFont(font);
+
+    GuiSetStyle(DEFAULT, TEXT_SIZE, TEXT_HEIGHT);
+    GuiSetIconScale(BUTTON_ICON_SCALE);
+    GuiSetStyle(DEFAULT, BORDER_WIDTH, BORDER_THICKNESS);
+
+    GuiSetStyle(DEFAULT, BORDER_COLOR_NORMAL, ColorToInt(COLOR_GRAY_096));
+    GuiSetStyle(DEFAULT, BASE_COLOR_NORMAL, ColorToInt(COLOR_GRAY_064));
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(COLOR_GRAY_160));
+
+    GuiSetStyle(DEFAULT, BORDER_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_160));
+    GuiSetStyle(DEFAULT, BASE_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_128));
+    GuiSetStyle(DEFAULT, TEXT_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_240));
+
+    GuiSetStyle(DEFAULT, BORDER_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
+    GuiSetStyle(DEFAULT, BASE_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
+    GuiSetStyle(DEFAULT, TEXT_COLOR_PRESSED, ColorToInt(COLOR_GRAY_064));
+
+    GuiSetStyle(DEFAULT, BORDER_COLOR_DISABLED, ColorToInt(COLOR_GRAY_064));
+    GuiSetStyle(DEFAULT, BASE_COLOR_DISABLED, ColorToInt(COLOR_GRAY_048));
+    GuiSetStyle(DEFAULT, TEXT_COLOR_DISABLED, ColorToInt(COLOR_GRAY_096));
+
+    GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
+    GuiSetStyle(DEFAULT, TEXT_ALIGNMENT_VERTICAL, TEXT_ALIGN_MIDDLE);
+
     // Clock times
     int tree_exp_clock_time = -1;
     int traj_opt_clock_time = -1;
@@ -87,9 +120,6 @@ int main() {
 
     int draw_elm_clock_time_next = 0;
 
-    // Load a monospaced font
-    Font mono_font = LoadFont("assets/IBMPlexMono-Bold.ttf");
-
     static const int button_width = 300;
     static const int button_height = 50;
     static const int button_margin = 10;
@@ -99,8 +129,8 @@ int main() {
     static const int button_x4 = SCREEN_WIDTH - 1 * (button_width + button_margin);
 
     // Column 1
+    Rectangle advance_button = {button_x1, button_margin + 0 * (button_height + button_margin), button_width, button_height};
     Rectangle pause_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle advance_button = {button_x1, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     // Column 2
     Rectangle use_hot_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
@@ -125,6 +155,8 @@ int main() {
     bool use_warm = true;
     bool use_cold = true;
     bool use_goal = true;
+
+    bool explicit_advance = false;
 
     SamplingSettings sampling_settings = {use_warm, use_cold, use_goal};
 
@@ -155,65 +187,17 @@ int main() {
 
         const Vector2 mouse_point = GetMousePosition();
 
-        // check button hitboxes
-        const bool mouse_in_pause_button = CheckCollisionPointRec(mouse_point, pause_button);
-        const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
-        const bool mouse_in_use_hot_button = CheckCollisionPointRec(mouse_point, use_hot_button);
-        const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
-        const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
-        const bool mouse_in_use_cold_start_button = CheckCollisionPointRec(mouse_point, use_cold_start_button);
-        const bool mouse_in_use_goal_sampling_button = CheckCollisionPointRec(mouse_point, use_goal_sampling_button);
+        const bool mouse_in_env = CheckCollisionPointRec(mouse_point, search_space_rec);
 
-        const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
-        const bool mouse_in_show_pre_opt_traj_button = CheckCollisionPointRec(mouse_point, show_pre_opt_traj_button);
-        const bool mouse_in_show_post_opt_traj_button = CheckCollisionPointRec(mouse_point, show_post_opt_traj_button);
-
-        // check if mouse is in any button
-        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_hot_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_use_goal_sampling_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
-
-        // update toggle states
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_pause_button) {
-            paused = !paused;
-        }
-
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_hot_button) {
-            use_hot = !use_hot;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
-            use_action_jitter = !use_action_jitter;
-        }
-
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_warm_start_button) {
-            use_warm = !use_warm;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_cold_start_button) {
-            use_cold = !use_cold;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_goal_sampling_button) {
-            use_goal = !use_goal;
-        }
-
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_tree_button) {
-            show_tree = !show_tree;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_pre_opt_traj_button) {
-            show_pre_opt_traj = !show_pre_opt_traj;
-        }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_post_opt_traj_button) {
-            show_post_opt_traj = !show_post_opt_traj;
-        }
         sampling_settings = {use_warm, use_cold, use_goal};
 
-        // Check for explicit advance
-        const bool explicit_advance = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_advance_button;
-
         // Update goal point from mouse
-        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON) && !mouse_in_button) {
+        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON) && mouse_in_env) {
             goal_point = mouse_point;
         }
 
         // Update start point from mouse
-        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON) && !mouse_in_button) {
+        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON) && mouse_in_env) {
             // Guard for start point inside obstacle
             if (!obstaclesCollidesWith(obstacles, screen2state(mouse_point))) {
                 start_point = mouse_point;
@@ -289,56 +273,21 @@ int main() {
         DrawGoalTriangle(goal_point, 20, WHITE);
         DrawGoalTriangle(goal_point, 10, BLACK);
 
-        if (paused) {
-            // Show pause overlay
-            DrawText("Paused", (0.4 * SCREEN_WIDTH) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, GOLD);
-        }
-
-        // Draw pause button
-        DrawRectangleRec(pause_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(paused ? "Resume" : "Pause", pause_button.x + 10, pause_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw advance button
-        DrawRectangleRec(advance_button, COLOR_BUTTON_BACKGROUND);
-        DrawText("Advance", advance_button.x + 10, advance_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-hot button
-        DrawRectangleRec(use_hot_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_hot ? "Disable hot start" : "Enable hot start", use_hot_button.x + 10, use_hot_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-action-jitter button
-        DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-warm-start button
-        DrawRectangleRec(use_warm_start_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_warm ? "Disable warm-start sampling" : "Enable warm-start sampling", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-cold-start button
-        DrawRectangleRec(use_cold_start_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_cold ? "Disable cold-start sampling" : "Enable cold-start sampling", use_cold_start_button.x + 10, use_cold_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw use-goal-sampling button
-        DrawRectangleRec(use_goal_sampling_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_goal ? "Disable goal sampling" : "Enable goal sampling", use_goal_sampling_button.x + 10, use_goal_sampling_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw show-tree button
-        DrawRectangleRec(show_tree_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(show_tree ? "Hide tree" : "Show tree", show_tree_button.x + 10, show_tree_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw show-pre-opt-traj button
-        DrawRectangleRec(show_pre_opt_traj_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(show_pre_opt_traj ? "Hide pre-opt traj" : "Show pre-opt traj", show_pre_opt_traj_button.x + 10, show_pre_opt_traj_button.y + 15, 20, COLOR_BUTTON_TEXT);
-
-        // Draw show-post-opt-traj button
-        DrawRectangleRec(show_post_opt_traj_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, COLOR_BUTTON_TEXT);
+        explicit_advance = GuiButton(advance_button, GuiIconText(ICON_PLAYER_NEXT, NULL));
+        GuiToggle(pause_button, GuiIconText(ICON_PLAYER_PAUSE, NULL), &paused);
+        GuiToggle(use_hot_button, "Hot-start", &use_hot);
+        GuiToggle(use_action_jitter_button, "Action jitter", &use_action_jitter);
+        GuiToggle(use_warm_start_button, "Warm-start Sampling", &use_warm);
+        GuiToggle(use_cold_start_button, "Cold-start Sampling", &use_cold);
+        GuiToggle(use_goal_sampling_button, "Goal Sampling", &use_goal);
+        GuiToggle(show_tree_button, "Show Tree", &show_tree);
+        GuiToggle(show_pre_opt_traj_button, "Show Pre-Opt Traj", &show_pre_opt_traj);
+        GuiToggle(show_post_opt_traj_button, "Show Post-Opt Traj", &show_post_opt_traj);
 
         // ---- Text stats
         static constexpr int STATS_MARGIN = 10;
-        static constexpr int STATS_FONT_SIZE = 20;
-        static constexpr int STATS_ROW_HEIGHT = STATS_FONT_SIZE + STATS_MARGIN;
-        static constexpr int STATS_WIDTH_1 = 200;
+        static constexpr int STATS_ROW_HEIGHT = TEXT_HEIGHT + STATS_MARGIN;
+        static constexpr int STATS_COL_WIDTH = 350;
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
@@ -358,23 +307,44 @@ int main() {
         draw_elm_clock_time = static_cast<int>(Lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
         game_upd_clock_time = static_cast<int>(Lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
 
+        GuiSetStyle(DEFAULT, TEXT_SIZE, SMALL_TEXT_HEIGHT);
+
         // Column 1 - timing info
-        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
-        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
+        GuiLabel(
+            (Rectangle){0 * STATS_COL_WIDTH, 0 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)));
+        GuiLabel(
+            (Rectangle){0 * STATS_COL_WIDTH, 1 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)));
+        GuiLabel(
+            (Rectangle){0 * STATS_COL_WIDTH, 2 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)));
+        GuiLabel(
+            (Rectangle){0 * STATS_COL_WIDTH, 3 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)));
 
         // Column 2 - planner stats
         const double v_avg = planner_outputs.solution.traj.state_sequence.row(3).cwiseAbs().mean();
-        DrawTextEx(mono_font, TextFormat("          Pre-opt cost %5.3f", planner_outputs.cost_pre_opt), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+
         int num_nodes = 0;
         for (const Nodes& nodes : planner_outputs.tree.layers) {
             num_nodes += nodes.size();
         }
-        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 4 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
+
+        GuiLabel(
+            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 0 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("          Pre-opt cost %5.3f", planner_outputs.cost_pre_opt));
+        GuiLabel(
+            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost));
+        GuiLabel(
+            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("        Traj avg speed %5.3f m/s", v_avg));
+        GuiLabel(
+            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("        Traj opt iters %5d", planner_outputs.solution.solve_record.iters));
+
+        GuiSetStyle(DEFAULT, TEXT_SIZE, TEXT_HEIGHT);
 
         // Time plots.
         {
@@ -398,20 +368,20 @@ int main() {
             const TimePlotDataValues yaw_time_plot_data_vals = {extractYaw(traj_post_opt), extractYaw(traj_pre_opt)};
 
             const double total_time = TRAJ_DURATION_OPT;
-            DrawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed", mono_font);
-            DrawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel", mono_font);
-            DrawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel", mono_font);
-            DrawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
-            DrawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw", mono_font);
+            DrawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed");
+            DrawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel");
+            DrawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel");
+            DrawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature");
+            DrawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw");
         }
-        
+
         EndDrawing();
         const float draw_elm_clock_stop = GetTime();
         draw_elm_clock_time_next = static_cast<int>(std::ceil(1e6 * (draw_elm_clock_stop - draw_elm_clock_start)));
     }
 
     // Teardown
-    UnloadFont(mono_font);
+    UnloadFont(font);
     CloseWindow();
     return 0;
 }
