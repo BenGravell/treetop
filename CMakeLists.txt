@@ -36,7 +36,7 @@ if(PLATFORM_WEB)
                     -s USE_GLFW=3 \
                     -s ASYNCIFY \
                     -s TOTAL_STACK=64MB \
-                    -s INITIAL_MEMORY=128MB \
+                    -s INITIAL_MEMORY=256MB \
                     --shell-file ${CMAKE_SOURCE_DIR}/shell.html \
                     --preload-file ${CMAKE_SOURCE_DIR}/assets@/assets"
         SUFFIX ".html"
