@@ -1,6 +1,6 @@
 #include "app/drawing.h"
 
-#include "raygui.h"
+#include <raygui.h>
 
 
 void DrawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name) {

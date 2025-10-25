@@ -1,7 +1,8 @@
 #pragma once
 
+static constexpr int BIG_TEXT_HEIGHT = 48;
 static constexpr int TEXT_HEIGHT = 30;
-static constexpr int SMALL_TEXT_HEIGHT = 20;
+static constexpr int SMALL_TEXT_HEIGHT = 24;
 static constexpr int BUTTON_ICON_SCALE = 2;
 static constexpr int BORDER_THICKNESS = 3;
 

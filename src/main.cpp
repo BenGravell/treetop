@@ -3,16 +3,18 @@
 
 #define RAYGUI_IMPLEMENTATION
 
+#include <raygui.h>
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
 #include <unordered_map>
 #include <vector>
 
-#include "raygui.h"
 #include "app/colors.h"
 #include "app/config.h"
 #include "app/drawing.h"
+#include "app/style_dark.h"
 #include "app/transforms.h"
 #include "core/constants.h"
 #include "core/loss.h"
@@ -23,7 +25,6 @@
 #include "core/util.h"
 #include "ilqr/solver.h"
 #include "planner/planner.h"
-
 #include "tree/tree.h"
 
 template <int N>
@@ -74,14 +75,38 @@ std::vector<double> extractYaw(const Trajectory<N>& traj) {
     return vals;
 }
 
+int roundToNearestPower10Pattern(float e) {
+    float exp10 = std::pow(10.0f, std::floor(e));
+    float normalized = std::pow(10.0f, e) / exp10;
+
+    // Define the pattern within each decade
+    std::vector<float> pattern = {1, 2, 5};
+
+    // Find the closest value in the pattern
+    float best = pattern[0];
+    for (float p : pattern) {
+        if (std::fabs(normalized - p) < std::fabs(normalized - best))
+            best = p;
+    }
+
+    // Scale back to the proper magnitude
+    return static_cast<int>(std::round(best * exp10));
+}
+
+int nodeAttemptsRound(const float num_node_attempts_pow10) {
+    return roundToNearestPower10Pattern(num_node_attempts_pow10);
+}
+
 int main() {
     // Initialization
     SetConfigFlags(FLAG_VSYNC_HINT);
 
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "TreeTop");
+    GuiLoadStyleDark();
 
     // Load a monospaced font
-    Font font = LoadFont("assets/IBMPlexMono-Bold.ttf");
+    Font font = LoadFontEx("assets/IBMPlexMono-Bold.ttf", BIG_TEXT_HEIGHT, 0, 0);
+
     SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
     GuiSetFont(font);
 
@@ -89,21 +114,21 @@ int main() {
     GuiSetIconScale(BUTTON_ICON_SCALE);
     GuiSetStyle(DEFAULT, BORDER_WIDTH, BORDER_THICKNESS);
 
-    GuiSetStyle(DEFAULT, BORDER_COLOR_NORMAL, ColorToInt(COLOR_GRAY_096));
-    GuiSetStyle(DEFAULT, BASE_COLOR_NORMAL, ColorToInt(COLOR_GRAY_064));
-    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(COLOR_GRAY_160));
+    // GuiSetStyle(DEFAULT, BORDER_COLOR_NORMAL, ColorToInt(COLOR_GRAY_096));
+    // GuiSetStyle(DEFAULT, BASE_COLOR_NORMAL, ColorToInt(COLOR_GRAY_064));
+    // GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(COLOR_GRAY_160));
 
-    GuiSetStyle(DEFAULT, BORDER_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_160));
-    GuiSetStyle(DEFAULT, BASE_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_128));
-    GuiSetStyle(DEFAULT, TEXT_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_240));
+    // GuiSetStyle(DEFAULT, BORDER_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_160));
+    // GuiSetStyle(DEFAULT, BASE_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_128));
+    // GuiSetStyle(DEFAULT, TEXT_COLOR_FOCUSED, ColorToInt(COLOR_GRAY_240));
 
-    GuiSetStyle(DEFAULT, BORDER_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
-    GuiSetStyle(DEFAULT, BASE_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
-    GuiSetStyle(DEFAULT, TEXT_COLOR_PRESSED, ColorToInt(COLOR_GRAY_064));
+    // GuiSetStyle(DEFAULT, BORDER_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
+    // GuiSetStyle(DEFAULT, BASE_COLOR_PRESSED, ColorToInt(COLOR_GRAY_240));
+    // GuiSetStyle(DEFAULT, TEXT_COLOR_PRESSED, ColorToInt(COLOR_GRAY_064));
 
-    GuiSetStyle(DEFAULT, BORDER_COLOR_DISABLED, ColorToInt(COLOR_GRAY_064));
-    GuiSetStyle(DEFAULT, BASE_COLOR_DISABLED, ColorToInt(COLOR_GRAY_048));
-    GuiSetStyle(DEFAULT, TEXT_COLOR_DISABLED, ColorToInt(COLOR_GRAY_096));
+    // GuiSetStyle(DEFAULT, BORDER_COLOR_DISABLED, ColorToInt(COLOR_GRAY_064));
+    // GuiSetStyle(DEFAULT, BASE_COLOR_DISABLED, ColorToInt(COLOR_GRAY_048));
+    // GuiSetStyle(DEFAULT, TEXT_COLOR_DISABLED, ColorToInt(COLOR_GRAY_096));
 
     GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
     GuiSetStyle(DEFAULT, TEXT_ALIGNMENT_VERTICAL, TEXT_ALIGN_MIDDLE);
@@ -120,31 +145,33 @@ int main() {
 
     int draw_elm_clock_time_next = 0;
 
-    static const int button_width = 300;
-    static const int button_height = 50;
+    static const int button_col_width = 300;
+    static const int button_row_height = 50;
     static const int button_margin = 10;
-    static const int button_x1 = SCREEN_WIDTH - 4 * (button_width + button_margin);
-    static const int button_x2 = SCREEN_WIDTH - 3 * (button_width + button_margin);
-    static const int button_x3 = SCREEN_WIDTH - 2 * (button_width + button_margin);
-    static const int button_x4 = SCREEN_WIDTH - 1 * (button_width + button_margin);
+    static const int button_width = button_col_width - button_margin;
+    static const int button_height = button_row_height - button_margin;
+    static const int button_x1 = SCREEN_WIDTH - 4 * button_col_width;
+    static const int button_x2 = SCREEN_WIDTH - 3 * button_col_width;
+    static const int button_x3 = SCREEN_WIDTH - 2 * button_col_width;
+    static const int button_x4 = SCREEN_WIDTH - 1 * button_col_width;
 
     // Column 1
-    Rectangle advance_button = {button_x1, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle pause_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle advance_button = {button_x1, button_margin + 0 * button_row_height, button_width, button_height};
+    Rectangle pause_button = {button_x1, button_margin + 1 * button_row_height, button_width, button_height};
 
     // Column 2
-    Rectangle use_hot_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_action_jitter_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_hot_button = {button_x2, button_margin + 0 * button_row_height, button_width, button_height};
+    Rectangle use_action_jitter_button = {button_x2, button_margin + 1 * button_row_height, button_width, button_height};
 
     // Column 3
-    Rectangle use_warm_start_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_cold_start_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_goal_sampling_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_warm_start_button = {button_x3, button_margin + 0 * button_row_height, button_width, button_height};
+    Rectangle use_cold_start_button = {button_x3, button_margin + 1 * button_row_height, button_width, button_height};
+    Rectangle use_goal_sampling_button = {button_x3, button_margin + 2 * button_row_height, button_width, button_height};
 
     // Column 4
-    Rectangle show_tree_button = {button_x4, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_pre_opt_traj_button = {button_x4, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_post_opt_traj_button = {button_x4, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_tree_button = {button_x4, button_margin + 0 * button_row_height, button_width, button_height};
+    Rectangle show_pre_opt_traj_button = {button_x4, button_margin + 1 * button_row_height, button_width, button_height};
+    Rectangle show_post_opt_traj_button = {button_x4, button_margin + 2 * button_row_height, button_width, button_height};
 
     Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y + (float)(Y_MIN * SCALE_SS), X_SIZE * SCALE_SS, Y_SIZE * SCALE_SS};
 
@@ -157,6 +184,12 @@ int main() {
     bool use_goal = true;
 
     bool explicit_advance = false;
+
+    int num_node_attempts = 5000;
+    float num_node_attempts_pow10 = std::log10(num_node_attempts);
+
+    int num_path_candidates = 2;
+    float num_path_candidates_float = static_cast<float>(num_path_candidates);
 
     SamplingSettings sampling_settings = {use_warm, use_cold, use_goal};
 
@@ -175,7 +208,7 @@ int main() {
     // Initial plan
     PlannerOutputs planner_outputs;
     std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt;
-    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings);
+    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
 
     float last_time = GetTime();
 
@@ -216,11 +249,14 @@ int main() {
         start_point = state2screen(start);
         goal_point = state2screen(goal);
 
+        num_node_attempts = nodeAttemptsRound(num_node_attempts_pow10);
+        num_path_candidates = static_cast<int>(num_path_candidates_float);
+
         // Update game state.
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
             warm = std::make_optional(planner_outputs.solution);
-            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings);
+            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
         }
 
         // Draw everything
@@ -284,10 +320,17 @@ int main() {
         GuiToggle(show_pre_opt_traj_button, "Show Pre-Opt Traj", &show_pre_opt_traj);
         GuiToggle(show_post_opt_traj_button, "Show Post-Opt Traj", &show_post_opt_traj);
 
+        const Rectangle num_node_attempts_box = {button_x1, button_margin + 3 * button_row_height, 2 * button_col_width - button_margin, button_height};
+        const Rectangle num_path_candidates_box = {button_x1, button_margin + 4 * button_row_height, 2 * button_col_width - button_margin, button_height};
+
+        GuiSliderBar(num_node_attempts_box, "Samples", TextFormat("%i", num_node_attempts), &num_node_attempts_pow10, 1.0f, 5.0f);
+        GuiSliderBar(num_path_candidates_box, "Path Candidates", TextFormat("%i", num_path_candidates), &num_path_candidates_float, 1.0f, 5.0f);
+
         // ---- Text stats
         static constexpr int STATS_MARGIN = 10;
         static constexpr int STATS_ROW_HEIGHT = TEXT_HEIGHT + STATS_MARGIN;
-        static constexpr int STATS_COL_WIDTH = 350;
+        static constexpr int STATS_COL_1_WIDTH = 300;
+        static constexpr int STATS_COL_2_WIDTH = 400;
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
@@ -308,19 +351,20 @@ int main() {
         game_upd_clock_time = static_cast<int>(Lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
 
         GuiSetStyle(DEFAULT, TEXT_SIZE, SMALL_TEXT_HEIGHT);
+        GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_RIGHT);
 
         // Column 1 - timing info
         GuiLabel(
-            (Rectangle){0 * STATS_COL_WIDTH, 0 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            (Rectangle){0, 0 * STATS_ROW_HEIGHT, STATS_COL_1_WIDTH, STATS_ROW_HEIGHT},
             TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)));
         GuiLabel(
-            (Rectangle){0 * STATS_COL_WIDTH, 1 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            (Rectangle){0, 1 * STATS_ROW_HEIGHT, STATS_COL_1_WIDTH, STATS_ROW_HEIGHT},
             TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)));
         GuiLabel(
-            (Rectangle){0 * STATS_COL_WIDTH, 2 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            (Rectangle){0, 2 * STATS_ROW_HEIGHT, STATS_COL_1_WIDTH, STATS_ROW_HEIGHT},
             TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)));
         GuiLabel(
-            (Rectangle){0 * STATS_COL_WIDTH, 3 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
+            (Rectangle){0, 3 * STATS_ROW_HEIGHT, STATS_COL_1_WIDTH, STATS_ROW_HEIGHT},
             TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)));
 
         // Column 2 - planner stats
@@ -332,19 +376,23 @@ int main() {
         }
 
         GuiLabel(
-            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 0 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
-            TextFormat("          Pre-opt cost %5.3f", planner_outputs.cost_pre_opt));
+            (Rectangle){STATS_COL_1_WIDTH, STATS_MARGIN + 0 * STATS_ROW_HEIGHT, STATS_COL_2_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("          Pre-opt cost  %5.3f", planner_outputs.cost_pre_opt));
         GuiLabel(
-            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
-            TextFormat("         Post-opt cost %5.3f", planner_outputs.solution.cost));
+            (Rectangle){STATS_COL_1_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT, STATS_COL_2_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("         Post-opt cost  %5.3f", planner_outputs.solution.cost));
         GuiLabel(
-            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
-            TextFormat("        Traj avg speed %5.3f m/s", v_avg));
+            (Rectangle){STATS_COL_1_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT, STATS_COL_2_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("     Traj avg speed [m/s]  %5.3f", v_avg));
         GuiLabel(
-            (Rectangle){1 * STATS_COL_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT, STATS_COL_WIDTH, STATS_ROW_HEIGHT},
-            TextFormat("        Traj opt iters %5d", planner_outputs.solution.solve_record.iters));
+            (Rectangle){STATS_COL_1_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT, STATS_COL_2_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("        Traj opt iters  %5d", planner_outputs.solution.solve_record.iters));
+        GuiLabel(
+            (Rectangle){STATS_COL_1_WIDTH, STATS_MARGIN + 4 * STATS_ROW_HEIGHT, STATS_COL_2_WIDTH, STATS_ROW_HEIGHT},
+            TextFormat("              # Nodes  %6d", num_nodes));
 
         GuiSetStyle(DEFAULT, TEXT_SIZE, TEXT_HEIGHT);
+        GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
 
         // Time plots.
         {

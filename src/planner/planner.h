@@ -8,8 +8,6 @@
 #include "ilqr/solver_settings.h"
 #include "tree/tree.h"
 
-static constexpr int NUM_NODE_ATTEMPTS = 20000;
-
 struct TimingInfo {
     int tree_exp;  // ms
     int traj_opt;  // ms
@@ -107,15 +105,15 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_action_jitter, const SamplingSettings& sampling_settings) {
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_action_jitter, const SamplingSettings& sampling_settings, const int num_node_attempts, const int num_path_candidates) {
         // ---- Tree expansion
         const float tree_exp_clock_start = GetTime();
-        const Tree tree = expandTree(start, goal, NUM_NODE_ATTEMPTS, warm, use_hot, sampling_settings);
+        const Tree tree = expandTree(start, goal, num_node_attempts, warm, use_hot, sampling_settings);
         const float tree_exp_clock_stop = GetTime();
         const int tree_exp_clock_time = static_cast<int>(std::ceil(1e6 * (tree_exp_clock_stop - tree_exp_clock_start)));
 
         // ---- Path extraction
-        const std::vector<Path>& path_candidates = tree.getPathCandidates();
+        const std::vector<Path>& path_candidates = tree.getPathCandidates(num_path_candidates);
 
         // ---- Trajectory optimization
         const float traj_opt_clock_start = GetTime();
