@@ -1,3 +1,3 @@
-#include "loss.h"
+#include "scenario.h"
 
 std::vector<Obstacle> obstacles = makeScenario();
