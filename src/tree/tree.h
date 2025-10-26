@@ -126,18 +126,6 @@ struct StateCloud {
 
 typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, StateCloud>, StateCloud, 4 /* dimension */> KDTree;
 
-struct NodeAndValue {
-    NodePtr node{nullptr};
-    double value{std::numeric_limits<double>::infinity()};
-
-    void compareWith(const NodePtr& node_other, const double value_other) {
-        if (value_other < value) {
-            node = node_other;
-            value = value_other;
-        }
-    }
-};
-
 struct Tree {
     Layers layers;
 
