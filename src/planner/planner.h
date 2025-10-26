@@ -130,11 +130,6 @@ struct Planner {
         for (const Path& path : path_candidates) {
             auto action_sequence = convertPathToActionSequence(path);
 
-            if (use_action_jitter) {
-                // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
-                addJitter(action_sequence);
-            }
-
             const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
 
             if (traj_opt_outputs.solution.cost < best_post_opt_cost) {
@@ -155,8 +150,25 @@ struct Planner {
             }
         }
 
-        const TrajOptOutputs& ret_traj_opt_outputs = found_best_goal_hit ? best_goal_hit_traj_opt_outputs : best_traj_opt_outputs;
-        const Path& ret_path = found_best_goal_hit ? best_goal_hit_path : best_path;
+        double ret_cost = found_best_goal_hit ? best_post_opt_goal_hit_cost : best_post_opt_cost;
+        TrajOptOutputs ret_traj_opt_outputs = found_best_goal_hit ? best_goal_hit_traj_opt_outputs : best_traj_opt_outputs;
+        Path ret_path = found_best_goal_hit ? best_goal_hit_path : best_path;
+
+        // Only apply action jitter on the ret_traj_opt_outputs.
+        if (use_action_jitter) {
+            auto action_sequence = ret_traj_opt_outputs.solution.traj.action_sequence;
+
+            // Add jitter on actions to try and jiggle out of bad local minima
+            addJitter(action_sequence);
+
+            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
+
+            // Only accept jittered traj if it still hits goal and improves cost.
+            if ((traj_opt_outputs.solution.cost < ret_cost) && checkTargetHit(traj_opt_outputs.solution.traj.stateTerminal(), goal)) {
+                ret_cost = traj_opt_outputs.solution.cost;
+                ret_traj_opt_outputs = traj_opt_outputs;
+            }        
+        }
 
         const float traj_opt_clock_stop = GetTime();
         const int traj_opt_clock_time = static_cast<int>(std::ceil(1e6 * (traj_opt_clock_stop - traj_opt_clock_start)));
