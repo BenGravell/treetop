@@ -74,7 +74,20 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal) {
     return {traj, cost};
 }
 
-inline bool checkTargetHit(const StateVector& state, const StateVector& target, const bool relax = false) {
+// Heuristic distance between states.
+// Slightly different from the kd-tree based distance.
+inline double stateDistance(const StateVector& state, const StateVector& target) {
+    const StateVector delta = state - target;
+
+    const double dx = delta(0);
+    const double dy = delta(1);
+    const double dyaw = delta(2);
+    const double dv = delta(3);
+
+    return shypot(dx, dy) + std::abs(dyaw) + std::abs(dv);
+}
+
+inline bool checkTargetHit(const StateVector& state, const StateVector& target) {
     const StateVector delta = state - target;
     const double dx = delta(0);
     const double dy = delta(1);
@@ -84,18 +97,9 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target, 
     // These are the same as problem.h -> makeProblem() -> terminal_state_params
     double x_tol = 0.01;
     double y_tol = 0.01;
-    double yaw_tol = 0.02;
+    double yaw_tol = 0.01;
     double v_tol = 0.01;
-    // NOTE: These are much looser than
-    // problem.h -> makeProblem() -> terminal_state_params
-    // to encourage choosing a trajectory in the lowest cost homotopy,
-    // even if it is not perfectly goal-reaching
-    if (relax) {
-        x_tol = 2.0;
-        y_tol = 2.0;
-        yaw_tol = 60.0 * (2.0 * M_PI / 360.0);
-        v_tol = 2.0;
-    }
+
     const bool dx_hit = std::abs(dx) < x_tol;
     const bool dy_hit = std::abs(dy) < y_tol;
     const bool dyaw_hit = std::abs(dyaw) < yaw_tol;
@@ -167,8 +171,8 @@ struct Tree {
 
     void growRootNode(const StateVector& start, const StateVector& goal) {
         // Root node is the only node in tree.layers[0]
-        const bool near_goal = checkTargetHit(start, goal, false);
-        const Node root{start, nullptr, std::nullopt, 0.0, 0.0, SampleReason::kCold, near_goal};
+        const double dist_to_goal = stateDistance(start, goal);
+        const Node root{start, nullptr, std::nullopt, 0.0, 0.0, SampleReason::kCold, dist_to_goal};
         const NodePtr root_ptr = std::make_shared<Node>(root);
         addNode(root_ptr, 0);
     }
@@ -189,8 +193,8 @@ struct Tree {
             const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
-            const bool near_goal = checkTargetHit(state, goal, false);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kZeroActionPoint, near_goal};
+            const double dist_to_goal = stateDistance(state, goal);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kZeroActionPoint, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -214,19 +218,8 @@ struct Tree {
             }
             const double cost = softLoss(traj);
             const StateVector& state = traj.stateTerminal();
-            const bool near_goal = checkTargetHit(state, goal, false);
-
-            // Special handling for goal node.
-            // We must only add a goal node from the warm traj if it is nearish to the goal,
-            // same acceptance criteria as in growGoalNodes(), sans collision check.
-            if (time_ix == TIME_IX_GOAL) {
-                const bool nearish_goal = checkTargetHit(state, goal, true);
-                if (!nearish_goal) {
-                    continue;
-                }
-            }
-
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kHot, near_goal};
+            const double dist_to_goal = stateDistance(state, goal);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kHot, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, time_ix);
             parent = node_ptr;
@@ -270,8 +263,8 @@ struct Tree {
         }
 
         // Create node from sampled state and add to the tree.
-        const bool near_goal = checkTargetHit(state, goal, false);
-        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, near_goal};
+        const double dist_to_goal = stateDistance(state, goal);
+        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, dist_to_goal};
         const NodePtr node_ptr = std::make_shared<Node>(node);
         addNode(node_ptr, time_ix);
     }
@@ -317,14 +310,10 @@ struct Tree {
             if (obstaclesCollidesWith(obstacles, traj)) {
                 continue;
             }
-            const bool near_goal = checkTargetHit(state, goal, false);
-            const bool nearish_goal = checkTargetHit(state, goal, true);
-            if (!nearish_goal) {
-                continue;
-            }
 
             // Add node.
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, near_goal};
+            const double dist_to_goal = stateDistance(state, goal);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, TIME_IX_GOAL);
         }
@@ -356,8 +345,8 @@ struct Tree {
             const StateVector& state = traj.stateTerminal();
 
             // Add node.
-            const bool near_goal = checkTargetHit(state, goal, false);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, near_goal};
+            const double dist_to_goal = stateDistance(state, goal);
+            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, TIME_IX_GOAL);
         }
@@ -411,25 +400,36 @@ struct Tree {
         std::vector<Path> candidates;
         candidates.reserve(num_path_candidates);
 
-        // Collect only nodes that are near the goal.
+        // Collect nodes that are near the goal.
         std::vector<NodePtr> near_goal_nodes;
         near_goal_nodes.reserve(goal_nodes.size());
         for (const NodePtr& node : goal_nodes) {
-            if (node->near_goal) {
+            static constexpr double d_tol = 0.01;
+            if (node->dist_to_goal < d_tol) {
                 near_goal_nodes.push_back(node);
             }
         }
 
-        // Choose the best node among near-goal nodes if available; otherwise, among all.
-        const auto& candidates_source = near_goal_nodes.empty() ? goal_nodes : near_goal_nodes;
+        // Choose the best node based on priorities.
+        NodePtr best_node = nullptr;
 
-        auto best_it = std::min_element(
-            candidates_source.begin(), candidates_source.end(),
-            [](const NodePtr& a, const NodePtr& b) {
-                return a->cost_to_come < b->cost_to_come;
-            });
+        if (!near_goal_nodes.empty()) {
+            auto best_it = std::min_element(
+                near_goal_nodes.begin(), near_goal_nodes.end(),
+                [](const NodePtr& a, const NodePtr& b) {
+                    return a->cost_to_come < b->cost_to_come;
+                });
+            best_node = *best_it;
+        } else {
+            auto best_it = std::min_element(
+                goal_nodes.begin(), goal_nodes.end(),
+                [](const NodePtr& a, const NodePtr& b) {
+                    return a->dist_to_goal < b->dist_to_goal;
+                });
+            best_node = *best_it;
+        }
 
-        candidates.push_back(extractPathToGoal(*best_it));
+        candidates.push_back(extractPathToGoal(best_node));
 
         // Randomly select the rest (if available).
         if (goal_nodes.size() > 1) {
@@ -437,7 +437,7 @@ struct Tree {
             std::vector<size_t> indices;
             indices.reserve(goal_nodes.size() - 1);
             for (size_t i = 0; i < goal_nodes.size(); ++i) {
-                if (goal_nodes[i] != *best_it) {
+                if (goal_nodes[i] != best_node) {
                     indices.push_back(i);
                 }
             }

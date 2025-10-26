@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <optional>
 
 #include "core/space.h"
@@ -32,6 +33,6 @@ struct Node {
     // Reason why this node was sampled.
     const SampleReason reason;
 
-    // Whether this node is near the goal.
-    const bool near_goal{false};
+    // Distance from this node to the goal.
+    const double dist_to_goal;
 };

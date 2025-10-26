@@ -122,8 +122,8 @@ struct Planner {
 
         // ---- Trajectory optimization
         const float traj_opt_clock_start = GetTime();
-
         double best_post_opt_cost = std::numeric_limits<double>::infinity();
+        double best_post_opt_dist_to_goal = std::numeric_limits<double>::infinity();
         TrajOptOutputs best_traj_opt_outputs;
         Path best_path;
 
@@ -138,7 +138,9 @@ struct Planner {
 
             const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence, use_traj_opt);
 
-            if (traj_opt_outputs.solution.cost < best_post_opt_cost) {
+            const double dist_to_goal = stateDistance(traj_opt_outputs.solution.traj.stateTerminal(), goal);
+            if (dist_to_goal < best_post_opt_dist_to_goal) {
+                best_post_opt_dist_to_goal = dist_to_goal;
                 best_post_opt_cost = traj_opt_outputs.solution.cost;
                 best_traj_opt_outputs = traj_opt_outputs;
                 best_path = path;
