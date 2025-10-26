@@ -160,8 +160,9 @@ int main() {
     Rectangle pause_button = {button_x1, button_margin + 1 * button_row_height, button_width, button_height};
 
     // Column 2
-    Rectangle use_hot_button = {button_x2, button_margin + 0 * button_row_height, button_width, button_height};
-    Rectangle use_action_jitter_button = {button_x2, button_margin + 1 * button_row_height, button_width, button_height};
+    Rectangle use_traj_opt_button = {button_x2, button_margin + 0 * button_row_height, button_width, button_height};
+    Rectangle use_hot_button = {button_x2, button_margin + 1 * button_row_height, button_width, button_height};
+    Rectangle use_action_jitter_button = {button_x2, button_margin + 2 * button_row_height, button_width, button_height};
 
     // Column 3
     Rectangle use_warm_start_button = {button_x3, button_margin + 0 * button_row_height, button_width, button_height};
@@ -178,6 +179,7 @@ int main() {
     // Toggle-able states
     bool paused = false;
     bool use_hot = true;
+    bool use_traj_opt = true;
     bool use_action_jitter = true;
     bool use_warm = true;
     bool use_cold = true;
@@ -208,7 +210,7 @@ int main() {
     // Initial plan
     PlannerOutputs planner_outputs;
     std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt;
-    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
+    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
 
     float last_time = GetTime();
 
@@ -256,7 +258,7 @@ int main() {
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
             warm = std::make_optional(planner_outputs.solution);
-            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
+            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
         }
 
         // Draw everything
@@ -312,7 +314,8 @@ int main() {
         explicit_advance = GuiButton(advance_button, GuiIconText(ICON_PLAYER_NEXT, NULL));
         GuiToggle(pause_button, GuiIconText(ICON_PLAYER_PAUSE, NULL), &paused);
         GuiToggle(use_hot_button, "Hot-start", &use_hot);
-        GuiToggle(use_action_jitter_button, "Action jitter", &use_action_jitter);
+        GuiToggle(use_traj_opt_button, "Optimize Trajectory", &use_traj_opt);
+        GuiToggle(use_action_jitter_button, "Action Jitter", &use_action_jitter);
         GuiToggle(use_warm_start_button, "Warm-start Sampling", &use_warm);
         GuiToggle(use_cold_start_button, "Cold-start Sampling", &use_cold);
         GuiToggle(use_goal_sampling_button, "Goal Sampling", &use_goal);

@@ -52,7 +52,7 @@ struct Planner {
         return action_sequence;
     }
 
-    static TrajOptOutputs optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
+    static TrajOptOutputs optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence, const bool do_optimize = true) {
         // Define the optimal control problem.
         const Problem problem = makeProblem(start, goal, TRAJ_DURATION_OPT);
 
@@ -61,20 +61,25 @@ struct Planner {
         rolloutOpenLoopConstrained(action_sequence, start, traj_pre_opt);
         const double cost_pre_opt = softLoss(traj_pre_opt);
 
-        // Solver settings.
-        const SolverSettings settings = SolverSettings();
-        settings.validate();
+        Solution<TRAJ_LENGTH_OPT> solution{};
+        if (do_optimize) {
+            // Solver settings.
+            const SolverSettings settings = SolverSettings();
+            settings.validate();
 
-        // Instantiate the solver.
-        Solver solver = Solver(std::make_shared<Problem>(problem), std::make_shared<SolverSettings>(settings));
+            // Instantiate the solver.
+            Solver solver = Solver(std::make_shared<Problem>(problem), std::make_shared<SolverSettings>(settings));
 
-        // Solve the optimal control problem.
-        Solution<TRAJ_LENGTH_OPT> solution = solver.solve(action_sequence);
+            // Solve the optimal control problem.
+            solution = solver.solve(action_sequence);
 
-        // Re-rollout the solution action sequence to ensure the solution trajectory is consistent & honors action constraints.
-        Trajectory<TRAJ_LENGTH_OPT> traj_post_opt;
-        rolloutOpenLoopConstrained(solution.traj.action_sequence, start, traj_post_opt);
-        solution.traj = traj_post_opt;
+            // Re-rollout the solution action sequence to ensure the solution trajectory is consistent & honors action constraints.
+            Trajectory<TRAJ_LENGTH_OPT> traj_post_opt;
+            rolloutOpenLoopConstrained(solution.traj.action_sequence, start, traj_post_opt);
+            solution.traj = traj_post_opt;
+        } else {
+            solution.traj = traj_pre_opt;
+        }
 
         // Assign the cost using arbitrary loss.
         solution.cost = softLoss(solution.traj);
@@ -105,7 +110,7 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_action_jitter, const SamplingSettings& sampling_settings, const int num_node_attempts, const int num_path_candidates) {
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_traj_opt, const bool use_action_jitter, const SamplingSettings& sampling_settings, const int num_node_attempts, const int num_path_candidates) {
         // ---- Tree expansion
         const float tree_exp_clock_start = GetTime();
         const Tree tree = expandTree(start, goal, num_node_attempts, warm, use_hot, sampling_settings);
@@ -117,6 +122,7 @@ struct Planner {
 
         // ---- Trajectory optimization
         const float traj_opt_clock_start = GetTime();
+
         double best_post_opt_cost = std::numeric_limits<double>::infinity();
         TrajOptOutputs best_traj_opt_outputs;
         Path best_path;
@@ -130,7 +136,7 @@ struct Planner {
         for (const Path& path : path_candidates) {
             auto action_sequence = convertPathToActionSequence(path);
 
-            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
+            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence, use_traj_opt);
 
             if (traj_opt_outputs.solution.cost < best_post_opt_cost) {
                 best_post_opt_cost = traj_opt_outputs.solution.cost;
@@ -161,13 +167,13 @@ struct Planner {
             // Add jitter on actions to try and jiggle out of bad local minima
             addJitter(action_sequence);
 
-            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence);
+            const TrajOptOutputs traj_opt_outputs = optimizeTrajectory(start, goal, action_sequence, use_traj_opt);
 
             // Only accept jittered traj if it still hits goal and improves cost.
             if ((traj_opt_outputs.solution.cost < ret_cost) && checkTargetHit(traj_opt_outputs.solution.traj.stateTerminal(), goal)) {
                 ret_cost = traj_opt_outputs.solution.cost;
                 ret_traj_opt_outputs = traj_opt_outputs;
-            }        
+            }
         }
 
         const float traj_opt_clock_stop = GetTime();
