@@ -25,8 +25,8 @@ inline std::vector<Obstacle> makeScenario() {
     // ---- Slalom
     static constexpr double x_offset = 6.0;
     std::vector<Obstacle> obstacles = {
-        {{x_mid - x_offset, 1.0 * ob_spacing_factor}, 2 * ob_r},
-        {{x_mid + x_offset, -1.0 * ob_spacing_factor}, 2 * ob_r}};
+        {{x_mid - x_offset, 1.0 * ob_spacing_factor}, 2.4 * ob_r},
+        {{x_mid + x_offset, -1.0 * ob_spacing_factor}, 2.4 * ob_r}};
 
     // ---- Parking space.
     std::vector<Obstacle> ps_obstacles = {
