@@ -89,9 +89,6 @@ struct Planner {
 
     template <int N>
     static void addJitter(ActionSequence<N>& action_sequence, double sigma_a = 0.01, double sigma_k = 0.001) {
-        // Create RNG generator.
-        static thread_local std::default_random_engine generator(std::random_device{}());
-
         // Set the distributions.
         std::normal_distribution<double> distribution_a(0.0, sigma_a);
         std::normal_distribution<double> distribution_k(0.0, sigma_k);
@@ -101,8 +98,8 @@ struct Planner {
         Eigen::Matrix<double, 1, N> noise_k;
 
         for (int i = 0; i < N; ++i) {
-            noise_a(0, i) = distribution_a(generator);
-            noise_k(0, i) = distribution_k(generator);
+            noise_a(0, i) = distribution_a(rng);
+            noise_k(0, i) = distribution_k(rng);
         }
 
         // Add noise in a single vectorized step
