@@ -58,20 +58,11 @@ inline double softLoss(const Trajectory<N>& traj) {
 
 using SteerTraj = Trajectory<TRAJ_LENGTH_STEER>;
 
-struct SteerOutputs {
-    SteerTraj traj;
-    double cost;
-};
-
-inline SteerOutputs steer(const StateVector& start, const StateVector& goal, const double duration) {
+inline SteerTraj steer(const StateVector& start, const StateVector& goal, const double duration) {
     const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, duration, DT);
-
     SteerTraj traj;
     rolloutOpenLoopConstrained(action_sequence, start, traj);
-
-    const double cost = softLoss(traj);
-
-    return {traj, cost};
+    return traj;
 }
 
 // Heuristic distance between states.
@@ -162,8 +153,14 @@ struct Tree {
         return layers[target_time_ix - 1][ret_index];
     }
 
-    void addNode(const NodePtr& node, const int time_ix) {
-        layers[time_ix].push_back(node);
+    NodePtr createNode(const NodePtr& parent, const SteerTraj& traj, const int time_ix, const StateVector& goal, const SampleReason reason) {
+        const double cost = softLoss(traj);
+        const StateVector& state = traj.stateTerminal();
+        const double dist_to_goal = stateDistance(state, goal);
+        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, dist_to_goal};
+        const NodePtr node_ptr = std::make_shared<Node>(node);
+        layers[time_ix].push_back(node_ptr);
+        return node_ptr;
     }
 
     void growRootNode(const StateVector& start, const StateVector& goal) {
@@ -171,7 +168,7 @@ struct Tree {
         const double dist_to_goal = stateDistance(start, goal);
         const Node root{start, nullptr, std::nullopt, 0.0, 0.0, SampleReason::kCold, dist_to_goal};
         const NodePtr root_ptr = std::make_shared<Node>(root);
-        addNode(root_ptr, 0);
+        layers.front().push_back(root_ptr);
     }
 
     NodePtr getRootNode() const {
@@ -186,15 +183,9 @@ struct Tree {
         // NOTE: this ignores collisions.
         NodePtr parent = getRootNode();
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), TRAJ_DURATION_STEER);
-            const SteerTraj& traj = steer_outputs.traj;
-            const double cost = steer_outputs.cost;
-            const StateVector& state = traj.stateTerminal();
-            const double dist_to_goal = stateDistance(state, goal);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kZeroActionPoint, dist_to_goal};
-            const NodePtr node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr, time_ix);
-            parent = node_ptr;
+            const SteerTraj traj = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), TRAJ_DURATION_STEER);
+            const SampleReason reason = SampleReason::kZeroActionPoint;
+            parent = createNode(parent, traj, time_ix, goal, reason);
         }
     }
 
@@ -213,13 +204,8 @@ struct Tree {
                     traj.setActionAt(stage_ix, warm_traj.actionAt(ix_in_warm_traj));
                 }
             }
-            const double cost = softLoss(traj);
-            const StateVector& state = traj.stateTerminal();
-            const double dist_to_goal = stateDistance(state, goal);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kHot, dist_to_goal};
-            const NodePtr node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr, time_ix);
-            parent = node_ptr;
+            const SampleReason reason = SampleReason::kHot;
+            parent = createNode(parent, traj, time_ix, goal, reason);
         }
     }
 
@@ -248,23 +234,13 @@ struct Tree {
         // NOTE: Using projection tends to produce bang-bang trajectories.
         // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
         const double duration = ((reason == SampleReason::kGoal) ? (TIME_IX_GOAL - time_ix) : 1) * TRAJ_DURATION_STEER;
-        const SteerOutputs steer_outputs = steer(parent->state, state, duration);
-        const SteerTraj& traj = steer_outputs.traj;
-        const double cost = steer_outputs.cost;
+        const SteerTraj traj = steer(parent->state, state, duration);
 
-        // Reset state sample as the terminal state in the trajectory.
-        state = traj.stateTerminal();
-
-        // Trajectory is in collision.
         if (obstaclesCollidesWith(obstacles, traj)) {
             return;
         }
 
-        // Create node from sampled state and add to the tree.
-        const double dist_to_goal = stateDistance(state, goal);
-        const Node node{state, parent, traj, cost, cost + parent->cost_to_come, reason, dist_to_goal};
-        const NodePtr node_ptr = std::make_shared<Node>(node);
-        addNode(node_ptr, time_ix);
+        createNode(parent, traj, time_ix, goal, reason);
     }
 
     void growSingleLayer(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_samples, const SamplingSettings& sampling_settings) {
@@ -297,20 +273,17 @@ struct Tree {
     }
 
     void growGoalNodes(const StateVector& goal) {
+        static constexpr SampleReason reason = SampleReason::kGoal;
+
+        // Attempt to steer to goal from every possible parent in the penultimate layer.
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
-            const SteerOutputs steer_outputs = steer(parent->state, goal, TRAJ_DURATION_STEER);
-            const SteerTraj& traj = steer_outputs.traj;
-            const StateVector& state = traj.stateTerminal();
-            const double cost = steer_outputs.cost;
+            const SteerTraj traj = steer(parent->state, goal, TRAJ_DURATION_STEER);
 
             if (obstaclesCollidesWith(obstacles, traj)) {
                 continue;
             }
 
-            const double dist_to_goal = stateDistance(state, goal);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
-            const NodePtr node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr, TIME_IX_GOAL);
+            createNode(parent, traj, TIME_IX_GOAL, goal, reason);
         }
 
         // Fallback to make sure there is at least one goal node.
@@ -330,15 +303,9 @@ struct Tree {
 
             const NodePtr parent = getNearestParent(goal, TIME_IX_GOAL, zap_kdtree);
 
-            const SteerOutputs steer_outputs = steer(parent->state, goal, TRAJ_DURATION_STEER);
+            const SteerTraj traj = steer(parent->state, goal, TRAJ_DURATION_STEER);
 
-            const SteerTraj& traj = steer_outputs.traj;
-            const double cost = steer_outputs.cost;
-            const StateVector& state = traj.stateTerminal();
-            const double dist_to_goal = stateDistance(state, goal);
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
-            const NodePtr node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr, TIME_IX_GOAL);
+            createNode(parent, traj, TIME_IX_GOAL, goal, reason);
         }
     }
 
