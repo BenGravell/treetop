@@ -292,8 +292,6 @@ int main() {
         if (viz_settings.show_pre_opt_traj) {
             static constexpr float line_width = 10;
             static constexpr float node_width = 20;
-            // Draw trajectory so that even if DrawPath draws nothing we still see the pre-opt traj.
-            DrawTrajectory(planner_outputs.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
             // Draw path so we see the nodes in the pre-opt traj path, if available.
             DrawPath(planner_outputs.path, line_width, node_width);
         }
