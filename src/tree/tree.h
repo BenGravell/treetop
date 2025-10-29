@@ -63,8 +63,8 @@ struct SteerOutputs {
     double cost;
 };
 
-inline SteerOutputs steer(const StateVector& start, const StateVector& goal) {
-    const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, TRAJ_DURATION_STEER);
+inline SteerOutputs steer(const StateVector& start, const StateVector& goal, const double duration) {
+    const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, duration, DT);
 
     SteerTraj traj;
     rolloutOpenLoopConstrained(action_sequence, start, traj);
@@ -129,7 +129,16 @@ typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double,
 struct Tree {
     Layers layers;
 
-    const NodePtr getNearest(const StateVector& target, const int target_time_ix, const KDTree& zap_kdtree) const {
+    const NodePtr getRandomParent(const int target_time_ix) const {
+        const Nodes& nodes = layers[target_time_ix - 1];
+        if (nodes.empty()) {
+            return nullptr;
+        }
+        std::uniform_int_distribution<size_t> dist(0, nodes.size() - 1);
+        return nodes[dist(rng)];
+    }
+
+    const NodePtr getNearestParent(const StateVector& target, const int target_time_ix, const KDTree& zap_kdtree) const {
         // Query point from KDTree index.
 
         // Distance from [zero-action-point of start] to [target]
@@ -177,7 +186,7 @@ struct Tree {
         // NOTE: this ignores collisions.
         NodePtr parent = getRootNode();
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER));
+            const SteerOutputs steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), TRAJ_DURATION_STEER);
             const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
@@ -221,7 +230,7 @@ struct Tree {
         const SampleReason reason = state_and_reason.reason;
 
         // Set the parent.
-        const NodePtr parent = getNearest(state, time_ix, zap_kdtree);
+        const NodePtr parent = (reason == SampleReason::kGoal) ? getRandomParent(time_ix) : getNearestParent(state, time_ix, zap_kdtree);
 
         // Could not find a parent.
         if (parent == nullptr) {
@@ -238,7 +247,8 @@ struct Tree {
         // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
         // NOTE: Using projection tends to produce bang-bang trajectories.
         // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
-        const SteerOutputs steer_outputs = steer(parent->state, state);
+        const double duration = ((reason == SampleReason::kGoal) ? (TIME_IX_GOAL - time_ix) : 1) * TRAJ_DURATION_STEER;
+        const SteerOutputs steer_outputs = steer(parent->state, state, duration);
         const SteerTraj& traj = steer_outputs.traj;
         const double cost = steer_outputs.cost;
 
@@ -288,7 +298,7 @@ struct Tree {
 
     void growGoalNodes(const StateVector& goal) {
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
-            const SteerOutputs steer_outputs = steer(parent->state, goal);
+            const SteerOutputs steer_outputs = steer(parent->state, goal, TRAJ_DURATION_STEER);
             const SteerTraj& traj = steer_outputs.traj;
             const StateVector& state = traj.stateTerminal();
             const double cost = steer_outputs.cost;
@@ -318,9 +328,9 @@ struct Tree {
             KDTree zap_kdtree(4, zap_cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
             zap_kdtree.buildIndex();
 
-            const NodePtr parent = getNearest(goal, TIME_IX_GOAL, zap_kdtree);
+            const NodePtr parent = getNearestParent(goal, TIME_IX_GOAL, zap_kdtree);
 
-            const SteerOutputs steer_outputs = steer(parent->state, goal);
+            const SteerOutputs steer_outputs = steer(parent->state, goal, TRAJ_DURATION_STEER);
 
             const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;

@@ -114,13 +114,11 @@ inline int inferTrajectoryDirection(const CubicCoeffs x_coeffs, const CubicCoeff
 }
 
 template <int N>
-inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector& goal, const double t_total) {
+inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector& goal, const double duration, const double dt) {
     const BoundaryConditionsXY bcs = states2bcs(start, goal);
 
-    const CubicCoeffs x_coeffs = bc2coeffs(bcs.x, t_total);
-    const CubicCoeffs y_coeffs = bc2coeffs(bcs.y, t_total);
-
-    const double dt = t_total / N;
+    const CubicCoeffs x_coeffs = bc2coeffs(bcs.x, duration);
+    const CubicCoeffs y_coeffs = bc2coeffs(bcs.y, duration);
 
     // Infer the trajectory direction.
     const int traj_dir = inferTrajectoryDirection(x_coeffs, y_coeffs, dt, start(2));
