@@ -29,10 +29,10 @@ struct TrajOptOutputs {
 };
 
 struct Planner {
-    static Tree expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const SamplingSettings& sampling_settings) {
+    static Tree expandTree(const StateVector& start, const StateVector& goal, const int num_samples, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const SamplingSettings& sampling_settings) {
         Tree tree;
         std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = warm ? std::optional(warm->traj) : std::nullopt;
-        tree.grow(start, goal, num_node_attempts, warm_traj, use_hot, sampling_settings);
+        tree.grow(start, goal, num_samples, warm_traj, use_hot, sampling_settings);
         return tree;
     }
 
@@ -107,10 +107,10 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_traj_opt, const bool use_action_jitter, const SamplingSettings& sampling_settings, const int num_node_attempts, const int num_path_candidates) {
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_hot, const bool use_traj_opt, const bool use_action_jitter, const SamplingSettings& sampling_settings, const int num_samples, const int num_path_candidates) {
         // ---- Tree expansion
         const float tree_exp_clock_start = GetTime();
-        const Tree tree = expandTree(start, goal, num_node_attempts, warm, use_hot, sampling_settings);
+        const Tree tree = expandTree(start, goal, num_samples, warm, use_hot, sampling_settings);
         const float tree_exp_clock_stop = GetTime();
         const int tree_exp_clock_time = static_cast<int>(std::ceil(1e6 * (tree_exp_clock_stop - tree_exp_clock_start)));
 

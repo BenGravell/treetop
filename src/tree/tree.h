@@ -32,9 +32,9 @@ const double PI = nanoflann::pi_const<double>();
 // Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
 static constexpr int NUM_STEER_SEGMENTS = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
 
-// Time index runs from 0 to NUM_STEER_SEGMENTS - 1, endpoints inclusive, leaving one time ix for goal node.
 // Time index of the goal node.
 static constexpr int TIME_IX_GOAL = NUM_STEER_SEGMENTS;
+// Time index of the last non-goal node layer.
 static constexpr int TIME_IX_MAX = TIME_IX_GOAL - 1;
 
 using Path = std::array<NodePtr, NUM_STEER_SEGMENTS>;
@@ -257,7 +257,7 @@ struct Tree {
         addNode(node_ptr, time_ix);
     }
 
-    void growSingleLayer(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_layer, const SamplingSettings& sampling_settings) {
+    void growSingleLayer(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_samples, const SamplingSettings& sampling_settings) {
         // Build the zero-action-point cloud.
         StateCloud zap_cloud;
         const Nodes& prev_nodes = layers[time_ix - 1];
@@ -274,22 +274,20 @@ struct Tree {
         zap_kdtree.buildIndex();
 
         // Grow.
-        for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_layer; ++node_attempt_ix) {
+        for (int sample_ix = 0; sample_ix < num_samples; ++sample_ix) {
             growSingleNode(goal, warm_traj, time_ix, zap_kdtree, sampling_settings);
         }
     }
 
-    void growLayers(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_node_attempts, const SamplingSettings& sampling_settings) {
-        const int num_node_attempts_per_layer = num_node_attempts / NUM_STEER_SEGMENTS;
+    void growLayers(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_samples, const SamplingSettings& sampling_settings) {
+        const int num_samples_per_layer = num_samples / NUM_STEER_SEGMENTS;
         for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            growSingleLayer(goal, warm_traj, time_ix, num_node_attempts_per_layer, sampling_settings);
+            growSingleLayer(goal, warm_traj, time_ix, num_samples_per_layer, sampling_settings);
         }
     }
 
     void growGoalNodes(const StateVector& goal) {
-        // Add goal nodes for all the collision-free goal-reaching parents.
         for (NodePtr parent : layers[TIME_IX_GOAL - 1]) {
-            // Steer from node to target.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
             const SteerTraj& traj = steer_outputs.traj;
             const StateVector& state = traj.stateTerminal();
@@ -299,7 +297,6 @@ struct Tree {
                 continue;
             }
 
-            // Add node.
             const double dist_to_goal = stateDistance(state, goal);
             const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
@@ -308,7 +305,6 @@ struct Tree {
 
         // Fallback to make sure there is at least one goal node.
         if (layers[TIME_IX_GOAL].empty()) {
-            // Build the zero-action-point cloud.
             StateCloud zap_cloud;
             const Nodes& prev_nodes = layers[TIME_IX_GOAL - 1];
             zap_cloud.pts.reserve(prev_nodes.size());
@@ -319,20 +315,16 @@ struct Tree {
                     return rolloutZeroAction(node->state, TRAJ_DURATION_STEER);
                 });
 
-            // Build the zero-action-point KD tree index.
             KDTree zap_kdtree(4, zap_cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
             zap_kdtree.buildIndex();
 
             const NodePtr parent = getNearest(goal, TIME_IX_GOAL, zap_kdtree);
 
-            // Steer from node to goal.
             const SteerOutputs steer_outputs = steer(parent->state, goal);
 
             const SteerTraj& traj = steer_outputs.traj;
             const double cost = steer_outputs.cost;
             const StateVector& state = traj.stateTerminal();
-
-            // Add node.
             const double dist_to_goal = stateDistance(state, goal);
             const Node node{state, parent, traj, cost, cost + parent->cost_to_come, SampleReason::kGoal, dist_to_goal};
             const NodePtr node_ptr = std::make_shared<Node>(node);
@@ -340,7 +332,7 @@ struct Tree {
         }
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const bool use_hot, const SamplingSettings& sampling_settings) {
+    void grow(const StateVector& start, const StateVector& goal, const int num_samples, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj, const bool use_hot, const SamplingSettings& sampling_settings) {
         // Add root node.
         growRootNode(start, goal);
 
@@ -363,7 +355,7 @@ struct Tree {
         // Skip sampling if settings are all disabled.
         if ((sampling_settings.use_cold || sampling_settings.use_warm || sampling_settings.use_goal)) {
             // Add samples for all layers.
-            growLayers(goal, warm_traj, num_node_attempts, sampling_settings);
+            growLayers(goal, warm_traj, num_samples, sampling_settings);
         }
 
         // Add goal nodes.
@@ -421,6 +413,8 @@ struct Tree {
 
         // Randomly select the rest (if available).
         if (goal_nodes.size() > 1) {
+            // TODO just directly sample a few random integers without replacement, don't create the entire list then shuffle it...
+
             // Create a list of indices excluding the best one.
             std::vector<size_t> indices;
             indices.reserve(goal_nodes.size() - 1);

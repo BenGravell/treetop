@@ -93,8 +93,8 @@ int roundToNearestPower10Pattern(float e) {
     return static_cast<int>(std::round(best * exp10));
 }
 
-int nodeAttemptsRound(const float num_node_attempts_pow10) {
-    return roundToNearestPower10Pattern(num_node_attempts_pow10);
+int samplesRound(const float num_samples_pow10) {
+    return roundToNearestPower10Pattern(num_samples_pow10);
 }
 
 int main() {
@@ -187,8 +187,8 @@ int main() {
 
     bool explicit_advance = false;
 
-    int num_node_attempts = 5000;
-    float num_node_attempts_pow10 = std::log10(num_node_attempts);
+    int num_samples = 5000;
+    float num_samples_pow10 = std::log10(num_samples);
 
     int num_path_candidates = 2;
     float num_path_candidates_float = static_cast<float>(num_path_candidates);
@@ -210,7 +210,7 @@ int main() {
     // Initial plan
     PlannerOutputs planner_outputs;
     std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt;
-    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
+    planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_samples, num_path_candidates);
 
     float last_time = GetTime();
 
@@ -251,14 +251,14 @@ int main() {
         start_point = state2screen(start);
         goal_point = state2screen(goal);
 
-        num_node_attempts = nodeAttemptsRound(num_node_attempts_pow10);
+        num_samples = samplesRound(num_samples_pow10);
         num_path_candidates = static_cast<int>(num_path_candidates_float);
 
         // Update game state.
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
             warm = std::make_optional(planner_outputs.solution);
-            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_node_attempts, num_path_candidates);
+            planner_outputs = Planner::plan(start, goal, warm, use_hot, use_traj_opt, use_action_jitter, sampling_settings, num_samples, num_path_candidates);
         }
 
         // Draw everything
@@ -321,10 +321,10 @@ int main() {
         GuiToggle(show_pre_opt_traj_button, "Show Pre-Opt Traj", &show_pre_opt_traj);
         GuiToggle(show_post_opt_traj_button, "Show Post-Opt Traj", &show_post_opt_traj);
 
-        const Rectangle num_node_attempts_box = {button_x1, button_margin + 3 * button_row_height, 2 * button_col_width - button_margin, button_height};
+        const Rectangle num_samples_box = {button_x1, button_margin + 3 * button_row_height, 2 * button_col_width - button_margin, button_height};
         const Rectangle num_path_candidates_box = {button_x1, button_margin + 4 * button_row_height, 2 * button_col_width - button_margin, button_height};
 
-        GuiSliderBar(num_node_attempts_box, "Samples", TextFormat("%i", num_node_attempts), &num_node_attempts_pow10, 1.0f, 5.0f);
+        GuiSliderBar(num_samples_box, "Samples", TextFormat("%i", num_samples), &num_samples_pow10, 1.0f, 5.0f);
         GuiSliderBar(num_path_candidates_box, "Path Candidates", TextFormat("%i", num_path_candidates), &num_path_candidates_float, 1.0f, 5.0f);
 
         // ---- Text stats
